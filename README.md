@@ -37,7 +37,7 @@ network namespace.
     ];
   };
 
-  systemd.services.my-service.vpn.enable = true;
+systemd.services.my-service.vpn.enable = true;
 }
 ```
 
