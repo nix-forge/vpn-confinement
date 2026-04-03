@@ -6,75 +6,106 @@
 }:
 let
   inherit (lib)
+    all
     attrNames
     concatMapStringsSep
     filterAttrs
-    hasInfix
     mapAttrs'
     mkEnableOption
     mkIf
     mkOption
     nameValuePair
     optionalString
+    splitString
     types
     unique
     ;
 
+  vpnLib = import ./lib.nix { inherit lib; };
+
   cfg = config.services.vpnConfinement;
 
   enabledNamespaces = filterAttrs (_: ns: ns.enable) cfg.namespaces;
+  enabledNamespaceNames = attrNames enabledNamespaces;
+
+  servicesWithVpn = filterAttrs (_: svc: (svc.vpn.enable or false)) config.systemd.services;
+  vpnEnabledServiceNames = attrNames servicesWithVpn;
+
+  nsFor =
+    serviceName:
+    let
+      inherit (config.systemd.services.${serviceName}) vpn;
+    in
+    if vpn.namespace != null then vpn.namespace else cfg.defaultNamespace;
 
   namespacePath = nsName: "/run/netns/${nsName}";
-  resolvConfPath = nsName: "/run/vpn-confinement/${nsName}/resolv.conf";
-  prepUnitName = nsName: "vpn-confinement-netns-${nsName}";
+  runtimePath = nsName: "/run/vpn-confinement/${nsName}";
+  resolvConfPath = nsName: "${runtimePath nsName}/resolv.conf";
+  nsswitchPath = nsName: "${runtimePath nsName}/nsswitch.conf";
 
-  renderPortSet = ports: "{ ${concatMapStringsSep ", " toString ports} }";
+  hostLinkEnabled = _nsName: ns: ns.hostLink.enable;
 
-  dnsSplit = servers: {
-    ipv4 = builtins.filter (s: !(hasInfix ":" s)) servers;
-    ipv6 = builtins.filter (s: hasInfix ":" s) servers;
-  };
-
-  mkResolvText =
-    dns:
+  mkDnsBlockedPortRules =
+    ns:
     let
-      nameservers = concatMapStringsSep "\n" (server: "nameserver ${server}") dns.servers;
-      search =
-        optionalString (dns.search != [ ])
-          "search ${concatMapStringsSep " " (entry: entry) dns.search}";
+      blocked = unique ns.dns.blockedPorts;
     in
-    ''
-      ${nameservers}
-      ${search}
-      options edns0
+    optionalString (blocked != [ ]) ''
+      oifname "${ns.wireguard.interface}" udp dport ${vpnLib.renderPortSet blocked} drop
+      oifname "${ns.wireguard.interface}" tcp dport ${vpnLib.renderPortSet blocked} drop
     '';
 
   mkDnsOutputRules =
     ns:
     let
-      dns = dnsSplit ns.dns.servers;
+      dns = vpnLib.splitDns ns.dns.servers;
       hasV4 = dns.ipv4 != [ ];
-      hasV6 = dns.ipv6 != [ ];
+      hasV6 = dns.ipv6 != [ ] && ns.ipv6.mode == "tunnel";
     in
     ''
       ${optionalString hasV4 ''
-        oifname "${ns.wireguardInterface}" ip daddr ${renderPortSet dns.ipv4} udp dport 53 accept
-        oifname "${ns.wireguardInterface}" ip daddr ${renderPortSet dns.ipv4} tcp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip daddr ${vpnLib.renderPortSet dns.ipv4} udp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip daddr ${vpnLib.renderPortSet dns.ipv4} tcp dport 53 accept
       ''}
       ${optionalString hasV6 ''
-        oifname "${ns.wireguardInterface}" ip6 daddr ${renderPortSet dns.ipv6} udp dport 53 accept
-        oifname "${ns.wireguardInterface}" ip6 daddr ${renderPortSet dns.ipv6} tcp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip6 daddr ${vpnLib.renderPortSet dns.ipv6} udp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip6 daddr ${vpnLib.renderPortSet dns.ipv6} tcp dport 53 accept
       ''}
-      oifname "${ns.wireguardInterface}" udp dport 53 drop
-      oifname "${ns.wireguardInterface}" tcp dport 53 drop
+      oifname "${ns.wireguard.interface}" udp dport 53 drop
+      oifname "${ns.wireguard.interface}" tcp dport 53 drop
+    '';
+
+  mkEgressRules =
+    ns:
+    let
+      extraTcp = unique ns.egress.extraTcp;
+      extraUdp = unique ns.egress.extraUdp;
+      extraCidrs = unique ns.egress.extraCidrs;
+      cidrCond = optionalString (extraCidrs != [ ]) "ip daddr ${vpnLib.renderPortSet extraCidrs}";
+    in
+    ''
+      ${optionalString (extraTcp != [ ])
+        "oifname \"${ns.wireguard.interface}\" ${cidrCond} tcp dport ${vpnLib.renderPortSet extraTcp} accept"
+      }
+      ${optionalString (extraUdp != [ ])
+        "oifname \"${ns.wireguard.interface}\" ${cidrCond} udp dport ${vpnLib.renderPortSet extraUdp} accept"
+      }
+      ${optionalString (
+        extraCidrs != [ ] && extraTcp == [ ] && extraUdp == [ ]
+      ) "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet extraCidrs} accept"}
+      ${optionalString (ns.egress.rawRules != [ ]) (
+        concatMapStringsSep "\n" (rule: rule) ns.egress.rawRules
+      )}
     '';
 
   mkNftRules =
-    _: ns:
+    nsName: ns:
     let
-      hostIngressTcp = unique ns.firewall.hostIngress.tcp;
-      inboundTcp = unique ns.firewall.inbound.tcp;
-      inboundUdp = unique ns.firewall.inbound.udp;
+      hostIngressTcp = unique ns.ingress.fromHost.tcp;
+      inboundTcp = unique ns.ingress.fromTunnel.tcp;
+      inboundUdp = unique ns.ingress.fromTunnel.udp;
+      withHostLink = hostLinkEnabled nsName ns;
+      strictDns = ns.dns.mode == "strict";
     in
     ''
       table inet vpnc {
@@ -82,15 +113,16 @@ let
           type filter hook input priority filter; policy drop;
           iifname "lo" accept
           ct state established,related accept
-          ${optionalString (hostIngressTcp != [ ])
-            "iifname \"${ns.veth.nsIf}\" ip saddr ${ns.veth.hostAddressIPv4} tcp dport ${renderPortSet hostIngressTcp} accept"
+          ${optionalString (ns.ipv6.mode == "disable") "meta nfproto ipv6 drop"}
+          ${optionalString (withHostLink && hostIngressTcp != [ ])
+            "iifname \"${ns.hostLink.nsIf}\" ip saddr ${ns.hostLink.hostAddressIPv4} tcp dport ${vpnLib.renderPortSet hostIngressTcp} accept"
           }
           ${optionalString (
             inboundTcp != [ ]
-          ) "iifname \"${ns.wireguardInterface}\" tcp dport ${renderPortSet inboundTcp} accept"}
+          ) "iifname \"${ns.wireguard.interface}\" tcp dport ${vpnLib.renderPortSet inboundTcp} accept"}
           ${optionalString (
             inboundUdp != [ ]
-          ) "iifname \"${ns.wireguardInterface}\" udp dport ${renderPortSet inboundUdp} accept"}
+          ) "iifname \"${ns.wireguard.interface}\" udp dport ${vpnLib.renderPortSet inboundUdp} accept"}
         }
 
         chain forward {
@@ -101,67 +133,197 @@ let
           type filter hook output priority filter; policy drop;
           oifname "lo" accept
           ct state established,related accept
-          ${optionalString ns.dns.blockNonConfigured (mkDnsOutputRules ns)}
-          ${optionalString (ns.firewall.extraOutputAllow != [ ]) (
-            concatMapStringsSep "\n" (rule: rule) ns.firewall.extraOutputAllow
-          )}
-          oifname "${ns.wireguardInterface}" accept
+          ${optionalString (ns.ipv6.mode == "disable") "meta nfproto ipv6 drop"}
+          ${optionalString strictDns (mkDnsOutputRules ns)}
+          ${optionalString strictDns (mkDnsBlockedPortRules ns)}
+          ${mkEgressRules ns}
+          oifname "${ns.wireguard.interface}" accept
         }
       }
     '';
 
   namespaceUnits = mapAttrs' (
     nsName: ns:
-    nameValuePair (prepUnitName nsName) {
+    let
+      withHostLink = hostLinkEnabled nsName ns;
+      nftRules = pkgs.writeText "vpn-confinement-${nsName}.nft" (mkNftRules nsName ns);
+      resolvText = pkgs.writeText "vpn-confinement-${nsName}.resolv.conf" (
+        vpnLib.renderResolvConf ns.dns
+      );
+      nsswitchText = pkgs.writeText "vpn-confinement-${nsName}.nsswitch.conf" (
+        vpnLib.renderNsswitchConf ns.dns
+      );
+      unitName = "vpn-confinement-netns@${nsName}";
+    in
+    nameValuePair unitName {
       description = "Prepare VPN confinement namespace ${nsName}";
-      wantedBy = [ "multi-user.target" ];
-      before = [ "wireguard-${ns.wireguardInterface}.service" ];
+      before = [ "wireguard-${ns.wireguard.interface}.service" ];
+      unitConfig.StopWhenUnneeded = true;
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        RuntimeDirectory = "vpn-confinement/${nsName}";
-        RuntimeDirectoryMode = "0755";
       };
-      script =
-        let
-          nftRules = pkgs.writeText "vpn-confinement-${nsName}.nft" (mkNftRules nsName ns);
-        in
-        ''
-          set -eu
+      script = ''
+        set -eu
 
-          ${pkgs.coreutils}/bin/mkdir -p /run/netns
-          if [ ! -e ${namespacePath nsName} ]; then
-            ${pkgs.iproute2}/bin/ip netns add ${nsName}
-          fi
+        ${pkgs.coreutils}/bin/mkdir -p /run/netns
+        if [ ! -e ${namespacePath nsName} ]; then
+          ${pkgs.iproute2}/bin/ip netns add ${nsName}
+        fi
 
-          ${pkgs.iproute2}/bin/ip -n ${nsName} link set lo up
+        ${pkgs.iproute2}/bin/ip -n ${nsName} link set lo up
 
-          ${pkgs.iproute2}/bin/ip link del ${ns.veth.hostIf} 2>/dev/null || true
-          ${pkgs.iproute2}/bin/ip -n ${nsName} link del ${ns.veth.nsIf} 2>/dev/null || true
+        ${optionalString withHostLink ''
+          ${pkgs.iproute2}/bin/ip link del ${ns.hostLink.hostIf} 2>/dev/null || true
+          ${pkgs.iproute2}/bin/ip -n ${nsName} link del ${ns.hostLink.nsIf} 2>/dev/null || true
 
-          ${pkgs.iproute2}/bin/ip link add ${ns.veth.hostIf} type veth peer name ${ns.veth.nsIf}
-          ${pkgs.iproute2}/bin/ip link set ${ns.veth.nsIf} netns ${nsName}
-          ${pkgs.iproute2}/bin/ip addr replace ${ns.veth.hostAddressIPv4}/30 dev ${ns.veth.hostIf}
-          ${pkgs.iproute2}/bin/ip link set ${ns.veth.hostIf} up
-          ${pkgs.iproute2}/bin/ip -n ${nsName} addr replace ${ns.veth.nsAddressIPv4}/30 dev ${ns.veth.nsIf}
-          ${pkgs.iproute2}/bin/ip -n ${nsName} link set ${ns.veth.nsIf} up
+          ${pkgs.iproute2}/bin/ip link add ${ns.hostLink.hostIf} type veth peer name ${ns.hostLink.nsIf}
+          ${pkgs.iproute2}/bin/ip link set ${ns.hostLink.nsIf} netns ${nsName}
+          ${pkgs.iproute2}/bin/ip addr replace ${ns.hostLink.hostAddressIPv4}/30 dev ${ns.hostLink.hostIf}
+          ${pkgs.iproute2}/bin/ip link set ${ns.hostLink.hostIf} up
+          ${pkgs.iproute2}/bin/ip -n ${nsName} addr replace ${ns.hostLink.nsAddressIPv4}/30 dev ${ns.hostLink.nsIf}
+          ${pkgs.iproute2}/bin/ip -n ${nsName} link set ${ns.hostLink.nsIf} up
+        ''}
 
-          tmp_resolv="$(${pkgs.coreutils}/bin/mktemp ${resolvConfPath nsName}.XXXXXX)"
-          ${pkgs.coreutils}/bin/cat > "$tmp_resolv" <<'EOF'
-          ${mkResolvText ns.dns}
-          EOF
-          ${pkgs.coreutils}/bin/chmod 0444 "$tmp_resolv"
-          ${pkgs.coreutils}/bin/mv -f "$tmp_resolv" ${resolvConfPath nsName}
+        ${optionalString (ns.ipv6.mode == "disable") ''
+          ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.procps}/bin/sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null
+          ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.procps}/bin/sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
+        ''}
 
+        ${pkgs.coreutils}/bin/mkdir -p ${runtimePath nsName}
+        ${pkgs.coreutils}/bin/install -m 0444 ${resolvText} ${resolvConfPath nsName}
+        ${pkgs.coreutils}/bin/install -m 0444 ${nsswitchText} ${nsswitchPath nsName}
+
+        ${pkgs.coreutils}/bin/mkdir -p /etc/netns/${nsName}
+        ${pkgs.coreutils}/bin/install -m 0444 ${resolvText} /etc/netns/${nsName}/resolv.conf
+
+        ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
+        ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft -f ${nftRules}
+      '';
+      postStop = ''
+        set -eu
+        if [ -e ${namespacePath nsName} ]; then
           ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
-          ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft -f ${nftRules}
-        '';
+        fi
+
+        ${optionalString withHostLink "${pkgs.iproute2}/bin/ip link del ${ns.hostLink.hostIf} 2>/dev/null || true"}
+        ${pkgs.coreutils}/bin/rm -rf ${runtimePath nsName}
+        ${pkgs.coreutils}/bin/rm -rf /etc/netns/${nsName}
+        ${pkgs.iproute2}/bin/ip netns del ${nsName} 2>/dev/null || true
+      '';
     }
   ) enabledNamespaces;
 
   wireguardAssignments = mapAttrs' (
-    nsName: ns: nameValuePair ns.wireguardInterface { interfaceNamespace = nsName; }
+    nsName: ns:
+    nameValuePair ns.wireguard.interface {
+      interfaceNamespace = nsName;
+      inherit (ns.wireguard) socketNamespace;
+    }
   ) enabledNamespaces;
+
+  wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
+
+  activeHostLinks = lib.filter (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+    in
+    hostLinkEnabled nsName ns
+  ) enabledNamespaceNames;
+
+  hostIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.hostIf) activeHostLinks;
+  nsIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.nsIf) activeHostLinks;
+  hostAddrs = map (nsName: enabledNamespaces.${nsName}.hostLink.hostAddressIPv4) activeHostLinks;
+  nsAddrs = map (nsName: enabledNamespaces.${nsName}.hostLink.nsAddressIPv4) activeHostLinks;
+
+  namespaceAssertions = builtins.concatMap (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+      wg = ns.wireguard.interface;
+      dnsSplit = vpnLib.splitDns ns.dns.servers;
+      withHostLink = hostLinkEnabled nsName ns;
+    in
+    [
+      {
+        assertion = ns.dns.servers != [ ];
+        message = "services.vpnConfinement.namespaces.${nsName}.dns.servers must be non-empty.";
+      }
+      {
+        assertion = all vpnLib.isLiteralIp ns.dns.servers;
+        message = "services.vpnConfinement.namespaces.${nsName}.dns.servers must contain literal IP addresses only.";
+      }
+      {
+        assertion = !(ns.ipv6.mode == "disable" && dnsSplit.ipv6 != [ ]);
+        message = "services.vpnConfinement.namespaces.${nsName}.dns.servers cannot include IPv6 when ipv6.mode = \"disable\".";
+      }
+      {
+        assertion = builtins.hasAttr wg config.networking.wireguard.interfaces;
+        message = "WireGuard interface ${wg} must exist under networking.wireguard.interfaces.";
+      }
+      {
+        assertion =
+          ns.ipv6.mode != "tunnel"
+          || (
+            let
+              wgConfig = config.networking.wireguard.interfaces.${wg};
+              peerAllowed = builtins.concatLists (map (peer: peer.allowedIPs or [ ]) (wgConfig.peers or [ ]));
+              allRoutes = (wgConfig.ips or [ ]) ++ peerAllowed;
+              literals = map (entry: builtins.head (splitString "/" entry)) allRoutes;
+            in
+            builtins.any vpnLib.isLiteralIpv6 literals
+          );
+        message = "services.vpnConfinement.namespaces.${nsName}.ipv6.mode = \"tunnel\" requires IPv6 routes on networking.wireguard.interfaces.${wg}.";
+      }
+      {
+        assertion = !withHostLink || vpnLib.isLiteralIpv4 ns.hostLink.hostAddressIPv4;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostAddressIPv4 must be a literal IPv4 address when host link is enabled.";
+      }
+      {
+        assertion = !withHostLink || vpnLib.isLiteralIpv4 ns.hostLink.nsAddressIPv4;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsAddressIPv4 must be a literal IPv4 address when host link is enabled.";
+      }
+    ]
+  ) enabledNamespaceNames;
+
+  serviceAssertions = builtins.concatMap (
+    serviceName:
+    let
+      nsName = nsFor serviceName;
+    in
+    [
+      {
+        assertion = builtins.hasAttr nsName cfg.namespaces;
+        message = "systemd.services.${serviceName}.vpn.namespace references unknown namespace ${nsName}.";
+      }
+      {
+        assertion = cfg.namespaces.${nsName}.enable;
+        message = "systemd.services.${serviceName}.vpn.namespace references disabled namespace ${nsName}.";
+      }
+    ]
+  ) vpnEnabledServiceNames;
+
+  socketServiceNames = builtins.attrNames config.systemd.sockets;
+
+  socketTargets = builtins.concatLists (
+    map (
+      socketName:
+      let
+        socket = config.systemd.sockets.${socketName};
+        configured = socket.socketConfig.Service or null;
+        fallback = "${socketName}.service";
+      in
+      if configured == null then [ fallback ] else [ configured ]
+    ) socketServiceNames
+  );
+
+  socketAssertions = builtins.concatMap (serviceName: [
+    {
+      assertion = !(builtins.elem "${serviceName}.service" socketTargets);
+      message = "vpn-confinement does not support socket-activated units: ${serviceName}.service is referenced by a .socket unit.";
+    }
+  ]) vpnEnabledServiceNames;
 in
 {
   imports = [ ./service-extension.nix ];
@@ -194,18 +356,33 @@ in
                 readOnly = true;
               };
 
-              bindAddress = mkOption {
+              nsswitchPath = mkOption {
                 type = types.str;
-                default = config.services.vpnConfinement.namespaces.${name}.veth.nsAddressIPv4;
+                default = nsswitchPath name;
                 readOnly = true;
               };
 
-              wireguardInterface = mkOption {
-                type = types.str;
-                default = "wg0";
+              wireguard = {
+                interface = mkOption {
+                  type = types.str;
+                  default = "wg0";
+                };
+
+                socketNamespace = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                };
               };
 
               dns = {
+                mode = mkOption {
+                  type = types.enum [
+                    "strict"
+                    "relaxed"
+                  ];
+                  default = "strict";
+                };
+
                 servers = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
@@ -216,13 +393,70 @@ in
                   default = [ ];
                 };
 
-                blockNonConfigured = mkOption {
-                  type = types.bool;
-                  default = true;
+                blockedPorts = mkOption {
+                  type = types.listOf types.port;
+                  default = [
+                    53
+                    853
+                    5353
+                    5355
+                  ];
                 };
               };
 
-              veth = {
+              ipv6.mode = mkOption {
+                type = types.enum [
+                  "disable"
+                  "tunnel"
+                ];
+                default = "disable";
+              };
+
+              ingress = {
+                fromHost.tcp = mkOption {
+                  type = types.listOf types.port;
+                  default = [ ];
+                };
+
+                fromTunnel.tcp = mkOption {
+                  type = types.listOf types.port;
+                  default = [ ];
+                };
+
+                fromTunnel.udp = mkOption {
+                  type = types.listOf types.port;
+                  default = [ ];
+                };
+              };
+
+              egress = {
+                extraTcp = mkOption {
+                  type = types.listOf types.port;
+                  default = [ ];
+                };
+
+                extraUdp = mkOption {
+                  type = types.listOf types.port;
+                  default = [ ];
+                };
+
+                extraCidrs = mkOption {
+                  type = types.listOf types.str;
+                  default = [ ];
+                };
+
+                rawRules = mkOption {
+                  type = types.listOf types.str;
+                  default = [ ];
+                };
+              };
+
+              hostLink = {
+                enable = mkOption {
+                  type = types.bool;
+                  default = false;
+                };
+
                 hostIf = mkOption {
                   type = types.str;
                   default = "ve-${name}-host";
@@ -243,32 +477,6 @@ in
                   default = "10.231.0.2";
                 };
               };
-
-              firewall = {
-                hostIngress = {
-                  tcp = mkOption {
-                    type = types.listOf types.port;
-                    default = [ ];
-                  };
-                };
-
-                inbound = {
-                  tcp = mkOption {
-                    type = types.listOf types.port;
-                    default = [ ];
-                  };
-
-                  udp = mkOption {
-                    type = types.listOf types.port;
-                    default = [ ];
-                  };
-                };
-
-                extraOutputAllow = mkOption {
-                  type = types.listOf types.str;
-                  default = [ ];
-                };
-              };
             };
           }
         )
@@ -285,23 +493,30 @@ in
         assertion = builtins.hasAttr cfg.defaultNamespace cfg.namespaces;
         message = "services.vpnConfinement.defaultNamespace must exist in services.vpnConfinement.namespaces.";
       }
+      {
+        assertion = unique wgNames == wgNames;
+        message = "Enabled namespaces must not reuse the same wireguard.interface.";
+      }
+      {
+        assertion = unique hostIfs == hostIfs;
+        message = "Enabled host links must not reuse hostLink.hostIf.";
+      }
+      {
+        assertion = unique nsIfs == nsIfs;
+        message = "Enabled host links must not reuse hostLink.nsIf.";
+      }
+      {
+        assertion = unique hostAddrs == hostAddrs;
+        message = "Enabled host links must not reuse hostLink.hostAddressIPv4.";
+      }
+      {
+        assertion = unique nsAddrs == nsAddrs;
+        message = "Enabled host links must not reuse hostLink.nsAddressIPv4.";
+      }
     ]
-    ++ builtins.concatMap (
-      nsName:
-      let
-        ns = cfg.namespaces.${nsName};
-      in
-      [
-        {
-          assertion = ns.dns.servers != [ ];
-          message = "services.vpnConfinement.namespaces.${nsName}.dns.servers must be non-empty.";
-        }
-        {
-          assertion = builtins.hasAttr ns.wireguardInterface config.networking.wireguard.interfaces;
-          message = "WireGuard interface ${ns.wireguardInterface} must exist under networking.wireguard.interfaces.";
-        }
-      ]
-    ) (attrNames enabledNamespaces);
+    ++ namespaceAssertions
+    ++ serviceAssertions
+    ++ socketAssertions;
 
     systemd.services = namespaceUnits;
     networking.wireguard.interfaces = wireguardAssignments;

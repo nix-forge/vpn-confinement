@@ -1,196 +1,154 @@
 { lib, config, ... }:
 let
   inherit (lib)
-    attrNames
-    filterAttrs
-    mkEnableOption
+    attrByPath
+    mkDefault
     mkIf
     mkMerge
+    mkEnableOption
     mkOption
-    optionals
-    optionalAttrs
     types
     ;
 
-  cfg = config.services.vpnConfinement;
-
-  vpnEnabledServiceNames = attrNames (filterAttrs (_: defaults: defaults.enable) cfg.serviceDefaults);
-
-  defaultsFor = serviceName: cfg.serviceDefaults.${serviceName};
-
-  nsFor =
-    serviceName:
-    let
-      defaults = defaultsFor serviceName;
-    in
-    if defaults.namespace != null then defaults.namespace else cfg.defaultNamespace;
-
-  serviceAssertions = builtins.concatMap (
-    serviceName:
-    let
-      defaults = defaultsFor serviceName;
-      nsName = nsFor serviceName;
-    in
-    [
-      {
-        assertion = builtins.hasAttr serviceName cfg.serviceDefaults;
-        message = "Missing services.vpnConfinement.serviceDefaults.${serviceName} for vpn-enabled service.";
-      }
-      {
-        assertion = builtins.hasAttr nsName cfg.namespaces;
-        message = "services.vpnConfinement.serviceDefaults.${serviceName} references unknown namespace ${nsName}.";
-      }
-      {
-        assertion = cfg.namespaces.${nsName}.enable;
-        message = "services.vpnConfinement.serviceDefaults.${serviceName} references disabled namespace ${nsName}.";
-      }
-      {
-        assertion = defaults.enable;
-        message = "services.vpnConfinement.serviceDefaults.${serviceName}.enable must be true for vpn-enabled service.";
-      }
-    ]
-  ) vpnEnabledServiceNames;
+  rootConfig = config;
 
   hardeningBaseline = {
-    NoNewPrivileges = lib.mkDefault true;
-    PrivateTmp = lib.mkDefault true;
-    PrivateDevices = lib.mkDefault true;
-    ProtectSystem = lib.mkDefault "strict";
-    ProtectHome = lib.mkDefault true;
-    ProtectControlGroups = lib.mkDefault true;
-    ProtectKernelModules = lib.mkDefault true;
-    ProtectKernelTunables = lib.mkDefault true;
-    ProtectKernelLogs = lib.mkDefault true;
-    RestrictSUIDSGID = lib.mkDefault true;
-    RestrictNamespaces = lib.mkDefault true;
-    LockPersonality = lib.mkDefault true;
-    CapabilityBoundingSet = lib.mkDefault "";
-    AmbientCapabilities = lib.mkDefault [ ];
-    ProtectProc = lib.mkDefault "invisible";
-    ProcSubset = lib.mkDefault "pid";
-    UMask = lib.mkDefault "0007";
+    NoNewPrivileges = mkDefault true;
+    PrivateTmp = mkDefault true;
+    ProtectSystem = mkDefault "full";
+    ProtectHome = mkDefault "read-only";
+    ProtectControlGroups = mkDefault true;
+    RestrictSUIDSGID = mkDefault true;
+    LockPersonality = mkDefault true;
+    CapabilityBoundingSet = mkDefault "";
+    AmbientCapabilities = mkDefault [ ];
+    UMask = mkDefault "0027";
   };
 
   hardeningStrict = {
-    ProtectClock = lib.mkDefault true;
-    ProtectHostname = lib.mkDefault true;
-    RestrictRealtime = lib.mkDefault true;
-    MemoryDenyWriteExecute = lib.mkDefault true;
-    SystemCallArchitectures = lib.mkDefault "native";
-    SystemCallFilter = lib.mkDefault [ "@system-service" ];
-    SystemCallErrorNumber = lib.mkDefault "EPERM";
+    PrivateDevices = mkDefault true;
+    ProtectKernelModules = mkDefault true;
+    ProtectKernelTunables = mkDefault true;
+    ProtectKernelLogs = mkDefault true;
+    ProtectProc = mkDefault "invisible";
+    ProcSubset = mkDefault "pid";
+    RestrictNamespaces = mkDefault true;
+    ProtectClock = mkDefault true;
+    ProtectHostname = mkDefault true;
+    RestrictRealtime = mkDefault true;
+    MemoryDenyWriteExecute = mkDefault true;
+    SystemCallArchitectures = mkDefault "native";
+    SystemCallFilter = mkDefault [ "@system-service" ];
+    SystemCallErrorNumber = mkDefault "EPERM";
   };
 in
 {
   options.systemd.services = mkOption {
     type = types.attrsOf (
-      types.submodule {
-        options.vpn.enable = mkEnableOption "run this unit in the VPN confinement namespace";
-      }
-    );
-  };
-
-  options.services.vpnConfinement.serviceDefaults = mkOption {
-    type = types.attrsOf (
-      types.submodule {
-        options = {
-          enable = mkEnableOption "VPN confinement defaults for this unit";
-
-          namespace = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-          };
-
-          strictDns = mkOption {
-            type = types.bool;
-            default = true;
-          };
-
-          dependsOnTunnel = mkOption {
-            type = types.bool;
-            default = true;
-          };
-
-          hardeningProfile = mkOption {
-            type = types.enum [
-              "baseline"
-              "strict"
-            ];
-            default = "baseline";
-          };
-
-          expose.tcp = mkOption {
-            type = types.listOf types.port;
-            default = [ ];
-          };
-
-          inbound.tcp = mkOption {
-            type = types.listOf types.port;
-            default = [ ];
-          };
-
-          inbound.udp = mkOption {
-            type = types.listOf types.port;
-            default = [ ];
-          };
-        };
-      }
-    );
-    default = { };
-  };
-
-  config = mkIf cfg.enable {
-    assertions = serviceAssertions;
-
-    systemd.services = mkMerge (
-      builtins.map (
-        serviceName:
+      types.submodule (
+        { config, ... }:
         let
-          defaults = defaultsFor serviceName;
-          nsName = nsFor serviceName;
-          ns = cfg.namespaces.${nsName};
-          hardening =
-            hardeningBaseline // optionalAttrs (defaults.hardeningProfile == "strict") hardeningStrict;
+          vcfg = rootConfig.services.vpnConfinement;
+          nsName = if config.vpn.namespace != null then config.vpn.namespace else vcfg.defaultNamespace;
+          ns = attrByPath [ nsName ] null vcfg.namespaces;
+          nsExists = ns != null;
+          strictDns = nsExists && ns.dns.mode == "strict";
+          withHostLink = nsExists && ns.hostLink.enable;
+          wgIf = if nsExists then ns.wireguard.interface else "wg0";
+          familySet =
+            if nsExists && ns.ipv6.mode == "disable" then
+              [
+                "AF_UNIX"
+                "AF_INET"
+              ]
+            else
+              [
+                "AF_UNIX"
+                "AF_INET"
+                "AF_INET6"
+              ];
         in
         {
-          ${serviceName} = {
-            after = optionals defaults.dependsOnTunnel [
-              "vpn-confinement-netns-${nsName}.service"
-              "wireguard-${ns.wireguardInterface}.service"
-            ];
-            requires = optionals defaults.dependsOnTunnel [
-              "vpn-confinement-netns-${nsName}.service"
-              "wireguard-${ns.wireguardInterface}.service"
-            ];
-            serviceConfig = hardening // {
-              NetworkNamespacePath = "/run/netns/${nsName}";
-              BindReadOnlyPaths = optionals defaults.strictDns [ "${ns.resolvConfPath}:/etc/resolv.conf" ];
-              InaccessiblePaths = optionals defaults.strictDns [
-                "/run/nscd"
-                "/run/resolvconf"
-                "-/run/systemd/resolve"
+          options.vpn = {
+            enable = mkEnableOption "run this unit in the VPN confinement namespace";
+
+            namespace = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+            };
+
+            dependsOnTunnel = mkOption {
+              type = types.bool;
+              default = true;
+            };
+
+            hardeningProfile = mkOption {
+              type = types.enum [
+                "baseline"
+                "strict"
               ];
+              default = "baseline";
+            };
+
+            ingress = {
+              fromHost.tcp = mkOption {
+                type = types.listOf types.port;
+                default = [ ];
+              };
+
+              fromTunnel.tcp = mkOption {
+                type = types.listOf types.port;
+                default = [ ];
+              };
+
+              fromTunnel.udp = mkOption {
+                type = types.listOf types.port;
+                default = [ ];
+              };
             };
           };
-        }
-      ) vpnEnabledServiceNames
-    );
 
-    services.vpnConfinement.namespaces = mkMerge (
-      builtins.map (
-        serviceName:
-        let
-          defaults = defaultsFor serviceName;
-          nsName = nsFor serviceName;
-        in
-        {
-          ${nsName} = {
-            firewall.hostIngress.tcp = defaults.expose.tcp;
-            firewall.inbound.tcp = defaults.inbound.tcp;
-            firewall.inbound.udp = defaults.inbound.udp;
-          };
+          config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
+            {
+              after = [ "vpn-confinement-netns@${nsName}.service" ];
+              requires = [ "vpn-confinement-netns@${nsName}.service" ];
+              serviceConfig = hardeningBaseline // {
+                NetworkNamespacePath = "/run/netns/${nsName}";
+                RestrictAddressFamilies = mkDefault familySet;
+              };
+            }
+            (mkIf (config.vpn.dependsOnTunnel && nsExists) {
+              after = [ "wireguard-${wgIf}.service" ];
+              requires = [ "wireguard-${wgIf}.service" ];
+              bindsTo = [ "wireguard-${wgIf}.service" ];
+            })
+            (mkIf strictDns {
+              serviceConfig = {
+                BindReadOnlyPaths = [
+                  "${ns.resolvConfPath}:/etc/resolv.conf"
+                  "${ns.nsswitchPath}:/etc/nsswitch.conf"
+                ];
+                InaccessiblePaths = [
+                  "/run/nscd"
+                  "/run/resolvconf"
+                  "-/run/systemd/resolve"
+                ];
+              };
+            })
+            (mkIf (config.vpn.hardeningProfile == "strict") {
+              serviceConfig = hardeningStrict // {
+                RestrictNetworkInterfaces = mkDefault (
+                  [
+                    "lo"
+                    wgIf
+                  ]
+                  ++ lib.optionals withHostLink [ ns.hostLink.nsIf ]
+                );
+              };
+            })
+          ]);
         }
-      ) vpnEnabledServiceNames
+      )
     );
   };
 }

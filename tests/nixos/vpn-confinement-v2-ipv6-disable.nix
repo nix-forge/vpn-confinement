@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-leak-tests";
+  name = "vpn-confinement-v2-ipv6-disable";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-leaks";
+    networking.hostName = "vpnc-v2-ipv6";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -13,8 +13,8 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.hostAddressIPv4 = "10.231.1.1";
-        hostLink.nsAddressIPv4 = "10.231.1.2";
+        hostLink.hostAddressIPv4 = "10.231.2.1";
+        hostLink.nsAddressIPv4 = "10.231.2.2";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
@@ -48,16 +48,7 @@
       '';
     };
 
-    systemd.services.netns-probe = {
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.coreutils}/bin/true";
-      };
-      vpn.enable = true;
-    };
-
-    systemd.services.netns-lived = {
+    systemd.services.netns-ipv6-probe = {
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
@@ -69,25 +60,16 @@
     environment.systemPackages = [
       pkgs.iproute2
       pkgs.nftables
+      pkgs.procps
     ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
-    machine.succeed("systemctl show -p Result --value netns-probe.service | grep -q '^success$'")
-
-    machine.succeed("systemctl show -p NetworkNamespacePath --value netns-probe.service | grep -q '^/run/netns/vpnapps$'")
-    machine.succeed("systemctl show -p BindsTo --value netns-probe.service | grep -q 'wireguard-wg0.service'")
-    machine.wait_for_unit("netns-lived.service")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'udp dport 53 drop'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport 53 drop'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'udp dport { 53, 853, 5353, 5355 } drop'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport { 53, 853, 5353, 5355 } drop'")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'oifname \"wg0\" accept'")
-    machine.succeed("systemctl show -p InaccessiblePaths --value netns-lived.service | grep -q '/run/systemd/resolve'")
-    machine.succeed("systemctl stop wireguard-wg0.service")
-    machine.wait_until_succeeds("systemctl show -p ActiveState --value netns-lived.service | grep -q '^inactive$'")
+    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip6 daddr'")
+    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.all.disable_ipv6 | grep -q '^1$'")
+    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.default.disable_ipv6 | grep -q '^1$'")
   '';
 }
