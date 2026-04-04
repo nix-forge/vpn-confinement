@@ -8,11 +8,12 @@ let
   inherit (lib)
     attrByPath
     mkDefault
+    mkEnableOption
     mkIf
     mkMerge
-    mkEnableOption
     mkOption
     types
+    unique
     ;
 
   rootConfig = config;
@@ -74,6 +75,12 @@ in
               null;
           withHostLink = nsExists && ns.hostLink.enable;
           wgIf = if nsExists then ns.wireguard.interface else "wg0";
+          allowedBindTcp =
+            if nsExists then unique (ns.ingress.fromHost.tcp ++ ns.ingress.fromTunnel.tcp) else [ ];
+          allowedBindUdp = if nsExists then unique ns.ingress.fromTunnel.udp else [ ];
+          bindAllowRules =
+            (map (port: "tcp:${toString port}") allowedBindTcp)
+            ++ (map (port: "udp:${toString port}") allowedBindUdp);
           familySet =
             if nsExists && ns.ipv6.mode == "disable" then
               [
@@ -103,12 +110,19 @@ in
               ];
               default = "baseline";
             };
+
+            restrictBind = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Restrict service-created listeners to namespace ingress ports as defense in depth.";
+            };
           };
 
           config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
             {
               after = [ "vpn-confinement-netns@${nsName}.service" ];
               requires = [ "vpn-confinement-netns@${nsName}.service" ];
+              bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
               serviceConfig = hardeningBaseline // {
                 NetworkNamespacePath = "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
@@ -132,8 +146,8 @@ in
                   "/run/resolvconf"
                   "-/run/systemd/resolve"
                 ]
-                ++ lib.optionals (!ns.dns.allowResolverHelpers) [ "/run/nscd" ]
-                ++ lib.optionals (!ns.dns.allowResolverHelpers) [
+                ++ lib.optionals (!ns.dns.allowHostResolverIPC) [ "/run/nscd" ]
+                ++ lib.optionals (!ns.dns.allowHostResolverIPC) [
                   "/run/dbus/system_bus_socket"
                   "-/var/run/dbus/system_bus_socket"
                 ];
@@ -148,7 +162,22 @@ in
                 };
               }
             ))
-            (mkIf (config.vpn.hardeningProfile == "strict") { serviceConfig = hardeningStrict; })
+            (mkIf (nsExists && config.vpn.restrictBind) {
+              serviceConfig =
+                if bindAllowRules == [ ] then
+                  { SocketBindDeny = [ "any" ]; }
+                else
+                  {
+                    SocketBindAllow = bindAllowRules;
+                    SocketBindDeny = [ "any" ];
+                  };
+            })
+            (mkIf (config.vpn.hardeningProfile == "strict") {
+              serviceConfig = hardeningStrict // {
+                ProtectSystem = mkDefault "strict";
+                ProtectHome = mkDefault true;
+              };
+            })
           ]);
         }
       )

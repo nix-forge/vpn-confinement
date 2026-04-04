@@ -289,6 +289,7 @@ let
       "wireguard-${ns.wireguard.interface}" = {
         after = [ "vpn-confinement-netns@${nsName}.service" ];
         requires = [ "vpn-confinement-netns@${nsName}.service" ];
+        bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
       };
     }) enabledNamespaces
   );
@@ -345,6 +346,10 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.wireguard.socketNamespace must be null, \"init\", or a valid namespace name.";
       }
       {
+        assertion = ns.wireguard.socketNamespace != nsName;
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.socketNamespace must not match the confinement namespace name; use null or \"init\" unless you intentionally need a different birthplace namespace for the WireGuard UDP socket.";
+      }
+      {
         assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
         message = "services.vpnConfinement.namespaces.${nsName}.egress.allowedCidrs cannot include IPv6 CIDRs when ipv6.mode = \"disable\".";
       }
@@ -382,7 +387,7 @@ let
             in
             all vpnLib.isSupportedEndpoint endpoints
           );
-        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to use either a literal IP endpoint (IPv4:port or [IPv6]:port) or a hostname endpoint (hostname:port).";
+        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to use a valid WireGuard endpoint syntax (IPv4:port, [IPv6]:port, or hostname:port).";
       }
       {
         assertion =
@@ -390,23 +395,13 @@ let
           || (
             let
               wgConfig = config.networking.wireguard.interfaces.${wg};
-              peers = wgConfig.peers or [ ];
-              interfaceRefresh = wgConfig.dynamicEndpointRefreshSeconds or 0;
-              peerHasEffectiveRefresh =
-                peer:
-                let
-                  endpoint = peer.endpoint or null;
-                  peerRefresh =
-                    if (peer.dynamicEndpointRefreshSeconds or null) != null then
-                      peer.dynamicEndpointRefreshSeconds
-                    else
-                      interfaceRefresh;
-                in
-                endpoint == null || !vpnLib.endpointIsHostname endpoint || peerRefresh > 0;
+              endpoints = builtins.filter (endpoint: endpoint != null) (
+                map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
+              );
             in
-            builtins.all peerHasEffectiveRefresh peers
+            builtins.all (endpoint: !vpnLib.endpointIsHostname endpoint) endpoints
           );
-        message = "services.vpnConfinement.namespaces.${nsName} requires hostname WireGuard endpoints to have periodic refresh enabled (networking.wireguard.interfaces.${wg}.dynamicEndpointRefreshSeconds > 0 or peer dynamicEndpointRefreshSeconds > 0).";
+        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to use literal IP endpoints only; hostname endpoints are rejected for confinement-managed namespaces.";
       }
       {
         assertion =
@@ -552,6 +547,11 @@ in
                 socketNamespace = mkOption {
                   type = types.nullOr types.str;
                   default = null;
+                  description = ''
+                    Advanced WireGuard UDP socket birthplace namespace. Leave this
+                    unset for the default path, or use "init" when the socket must
+                    stay in the host namespace.
+                  '';
                 };
               };
 
@@ -559,9 +559,13 @@ in
                 mode = mkOption {
                   type = types.enum [
                     "strict"
-                    "relaxed"
+                    "compat"
                   ];
                   default = "strict";
+                  description = ''
+                    DNS containment mode. "strict" is the secure default; "compat"
+                    weakens resolver containment for workloads that need it.
+                  '';
                 };
 
                 servers = mkOption {
@@ -574,9 +578,13 @@ in
                   default = [ ];
                 };
 
-                allowResolverHelpers = mkOption {
+                allowHostResolverIPC = mkOption {
                   type = types.bool;
                   default = false;
+                  description = ''
+                    Allow strict-mode services to reach host resolver helper IPC such
+                    as nscd or system D-Bus. This weakens DNS containment.
+                  '';
                 };
               };
 
