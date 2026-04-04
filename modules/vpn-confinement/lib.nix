@@ -175,6 +175,8 @@ let
 
   endpointIpv6Match = value: builtins.match "^[[](.+)[]]:([0-9]{1,5})$" value;
 
+  endpointHostnameMatch = value: builtins.match "^([^:]+):([0-9]{1,5})$" value;
+
   isLiteralIpv4Endpoint =
     value:
     let
@@ -190,6 +192,42 @@ let
       port = if match == null then null else parsePort (builtins.elemAt match 1);
     in
     match != null && isLiteralIpv6 (builtins.elemAt match 0) && port != null && isValidPort port;
+
+  hostnameLabelMatch = label: builtins.match "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$" label;
+
+  isHostname =
+    value:
+    let
+      labels = splitString "." value;
+    in
+    builtins.stringLength value >= 1
+    && builtins.stringLength value <= 253
+    && labels != [ ]
+    && all (label: label != "" && hostnameLabelMatch label != null) labels;
+
+  isHostnameEndpoint =
+    value:
+    let
+      match = endpointHostnameMatch value;
+      host = if match == null then null else builtins.elemAt match 0;
+      port = if match == null then null else parsePort (builtins.elemAt match 1);
+    in
+    match != null
+    && host != null
+    && isHostname host
+    && port != null
+    && isValidPort port
+    && !isLiteralIpv4 host
+    && !isLiteralIpv6 host;
+
+  isSupportedEndpoint =
+    value: isLiteralIpv4Endpoint value || isLiteralIpv6Endpoint value || isHostnameEndpoint value;
+
+  isValidNamespaceName =
+    value:
+    builtins.stringLength value >= 1
+    && builtins.stringLength value <= 64
+    && builtins.match "^[A-Za-z0-9_.-]+$" value != null;
 
   isValidInterfaceName =
     value:
@@ -240,7 +278,13 @@ in
 
   isLiteralEndpoint = value: isLiteralIpv4Endpoint value || isLiteralIpv6Endpoint value;
 
+  inherit isSupportedEndpoint;
+
+  endpointIsHostname = isHostnameEndpoint;
+
   inherit isValidInterfaceName;
+
+  inherit isValidNamespaceName;
 
   splitIpv4 = ip: splitString "." ip;
 }

@@ -60,6 +60,19 @@
       vpn.enable = true;
     };
 
+    systemd.services.netns-echo-strict = {
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        DynamicUser = true;
+        ExecStart = "${pkgs.coreutils}/bin/true";
+      };
+      vpn = {
+        enable = true;
+        hardeningProfile = "strict";
+      };
+    };
+
     environment.systemPackages = [
       pkgs.curl
       pkgs.iproute2
@@ -76,6 +89,8 @@
     machine.succeed("ip netns list | grep -q '^vpnapps\\b'")
     machine.succeed("ip -n vpnapps link show wg0")
     machine.succeed("systemctl show -p NetworkNamespacePath --value netns-echo.service | grep -q '^/run/netns/vpnapps$'")
+    machine.succeed("systemctl show -p After --value wireguard-wg0.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
+    machine.succeed("systemctl show -p Requires --value wireguard-wg0.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
     machine.succeed("test -s /run/vpn-confinement/vpnapps/resolv.conf")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'policy drop'")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
@@ -86,9 +101,11 @@
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -q '/etc/nsswitch.conf'")
     machine.succeed("grep -q '^hosts: files myhostname dns$' /run/vpn-confinement/vpnapps/nsswitch.conf")
     machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/systemd/resolve'")
+    machine.fail("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/nscd'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )lo( |$)'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )wg0( |$)'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )ve-vpnapps-ns( |$)'")
+    machine.succeed("systemctl show -p SystemCallFilter --value netns-echo-strict.service | grep -Eq '(^| )~@mount( |$)'")
     machine.succeed("systemctl stop netns-echo.service")
     machine.wait_until_succeeds("! ip netns list | grep -q '^vpnapps\\b'")
   '';

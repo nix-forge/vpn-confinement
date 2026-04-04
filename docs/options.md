@@ -6,9 +6,13 @@
 - `services.vpnConfinement.defaultNamespace`
 - `services.vpnConfinement.namespaces.<name>.enable`
 - `services.vpnConfinement.namespaces.<name>.wireguard.interface`
+- `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
+- `services.vpnConfinement.namespaces.<name>.wireguard.dynamicEndpointRefreshSeconds`
 - `services.vpnConfinement.namespaces.<name>.dns.mode`
 - `services.vpnConfinement.namespaces.<name>.dns.servers`
 - `services.vpnConfinement.namespaces.<name>.dns.search`
+- `services.vpnConfinement.namespaces.<name>.dns.blockSystemBus`
+- `services.vpnConfinement.namespaces.<name>.dns.blockNscd`
 - `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 - `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 - `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
@@ -40,6 +44,8 @@
 - `services.vpnConfinement.targetServices` was removed in v2.
 - DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
 - `dns.mode` values are `strict` or `relaxed`.
+- `dns.blockSystemBus = true` adds system D-Bus socket blocking in strict mode.
+- `dns.blockNscd = true` blocks `/run/nscd` in strict mode.
 - `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
 - `egress.mode = "allowList"` allows only configured `allowed*` rules.
 - VPN-enabled services running as root emit a warning unless
@@ -48,10 +54,10 @@
   DNS policy.
 - Socket units can be vpn-enabled and should match namespace policy with their
   target service.
+- WireGuard peer endpoints can be literal IPs or hostnames. Hostname endpoints
+  require endpoint refresh (`dynamicEndpointRefreshSeconds > 0`).
 
-## Breaking changes in this version
+## Notes on removed options
 
-- Removed `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`.
 - Removed `services.vpnConfinement.namespaces.<name>.dns.blockedPorts`.
 - Removed `systemd.services.<name>.vpn.dependsOnTunnel`.
-- Socket-activated units are now supported via `systemd.sockets.<name>.vpn.*`.

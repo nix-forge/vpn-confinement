@@ -12,6 +12,10 @@ services.
 - Confinement uses a dedicated Linux network namespace at `/run/netns/<name>`.
 - WireGuard is configured via `networking.wireguard.interfaces.<if>` and
   assigned with `interfaceNamespace`.
+- The module can also set WireGuard `socketNamespace` and
+  `dynamicEndpointRefreshSeconds` per confinement namespace.
+- `wireguard-<if>.service` explicitly requires and orders after the namespace
+  preparation unit.
 - Namespace-local nftables enforces deny-by-default egress and allows only
   tunnel traffic according to namespace egress mode.
 - A namespace-specific `resolv.conf` is bind-mounted into confined units.
@@ -42,10 +46,20 @@ services.
   `BindsTo=wireguard-<if>.service`.
 - DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
   ports.
-- WireGuard peer endpoints must be literal IP endpoints to avoid hostname
-  resolution ambiguity across namespaces.
+- WireGuard peer endpoints may be literal IPs or hostnames. Hostname endpoints
+  require endpoint refresh (`dynamicEndpointRefreshSeconds > 0`) so DNS changes
+  are re-resolved.
 - Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
   system bus access is additionally restricted for that unit.
+
+## Socket activation pattern
+
+- Recommended default for host-facing services: leave `.socket` in host
+  namespace and run `.service` in VPN namespace.
+- This preserves host listener behavior while confining service-originated
+  outbound traffic.
+- Use socket namespace attachment only when the listening socket itself must be
+  inside the VPN namespace.
 
 ## Limitations
 

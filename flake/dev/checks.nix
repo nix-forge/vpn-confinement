@@ -53,11 +53,35 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-socket-activation.nix { inherit pkgs; }
       );
 
+      checks.vpn-confinement-v2-wireguard-hostname-endpoint-refresh = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-wireguard-hostname-endpoint-refresh.nix {
+          inherit pkgs;
+        }
+      );
+
+      checks.vpn-confinement-v2-dns-system-bus-block = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-dns-system-bus-block.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-dns-nscd-toggle = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-dns-nscd-toggle.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-host-socket-vpn-service-pattern = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-host-socket-vpn-service-pattern.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-hostlink-disabled-no-ingress = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-hostlink-disabled-no-ingress.nix { inherit pkgs; }
+      );
+
       checks.vpn-confinement-v2-egress-ipv6-cidr-reject = mkEvalRejectCheck "vpn-confinement-v2-egress-ipv6-cidr-reject" ../../tests/nixos/vpn-confinement-v2-egress-ipv6-cidr-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-endpoint-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-literal-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-literal-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-endpoint-ipv6-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-ipv6-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-ipv6-reject.nix;
+
+      checks.vpn-confinement-v2-namespace-name-validation-reject = mkEvalRejectCheck "vpn-confinement-v2-namespace-name-validation-reject" ../../tests/nixos/vpn-confinement-v2-namespace-name-validation-reject.nix;
 
       checks.vpn-confinement-v2-ipv6-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-ipv6-literal-reject" ../../tests/nixos/vpn-confinement-v2-ipv6-literal-reject.nix;
 

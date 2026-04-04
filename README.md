@@ -114,7 +114,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
   - `wireguard.interface`
+  - `wireguard.socketNamespace = null | <name>`
+  - `wireguard.dynamicEndpointRefreshSeconds = <int>` (default `0`)
   - `dns.mode = "strict" | "relaxed"`
+  - `dns.blockSystemBus = false` by default
+  - `dns.blockNscd = false` by default
   - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `ipv6.mode = "disable" | "tunnel"` (default: `disable`)
@@ -126,8 +130,10 @@ than policy-routing-only setups for the "only these services use VPN" case.
   leak rules, put them in different namespaces.
 - Strict DNS also binds namespace-local `nsswitch.conf` with
   `hosts: files myhostname dns` and blocks host resolver helper paths.
-- `networking.wireguard.interfaces.<if>.peers.*.endpoint` must use literal IP
-  endpoints (`IPv4:port` or `[IPv6]:port`); hostname endpoints are rejected.
+- `networking.wireguard.interfaces.<if>.peers.*.endpoint` may use literal IP
+  endpoints (`IPv4:port` or `[IPv6]:port`) or hostname endpoints
+  (`hostname:port`). Hostname endpoints require refresh
+  (`dynamicEndpointRefreshSeconds > 0` at interface or peer level).
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
 
@@ -155,8 +161,12 @@ than policy-routing-only setups for the "only these services use VPN" case.
   `/run/systemd/resolve` helpers) within confined services.
 - Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
   configured resolver paths when `dns.mode = "strict"`.
+- For maximal DNS hardening, set `dns.blockSystemBus = true` to block access to
+  the system D-Bus socket from confined services.
 - Applications that directly call host resolver APIs over D-Bus are outside this
   guarantee unless the service also blocks system bus access.
+- `dns.blockNscd = true` can further restrict resolver helper paths, but may
+  reduce compatibility for workloads expecting NSS daemon access.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
   `egress.mode = "allowList"` with constrained `allowedCidrs`).
@@ -173,6 +183,15 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - If WireGuard client traffic does not pass on NixOS, reverse-path filtering can
   be the issue. Try `networking.firewall.checkReversePath = "loose";` as a
   troubleshooting step.
+
+## Socket activation pattern
+
+- For host-facing socket-activated services, the simplest pattern is usually:
+  keep the `.socket` in the host namespace and confine only the `.service`.
+- This lets systemd accept connections on host sockets while service-created
+  outbound traffic stays inside VPN confinement.
+- Enable `systemd.sockets.<name>.vpn.*` only when the listening socket itself
+  must live inside the VPN namespace.
 
 ## Development
 

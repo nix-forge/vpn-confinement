@@ -38,7 +38,10 @@ let
     RestrictRealtime = mkDefault true;
     MemoryDenyWriteExecute = mkDefault true;
     SystemCallArchitectures = mkDefault "native";
-    SystemCallFilter = mkDefault [ "@system-service" ];
+    SystemCallFilter = mkDefault [
+      "@system-service"
+      "~@mount"
+    ];
     SystemCallErrorNumber = mkDefault "EPERM";
   };
 in
@@ -107,19 +110,28 @@ in
               requires = [ "wireguard-${wgIf}.service" ];
               bindsTo = [ "wireguard-${wgIf}.service" ];
             })
-            (mkIf strictDns {
-              serviceConfig = {
-                BindReadOnlyPaths = [
-                  "/run/vpn-confinement/${nsName}/resolv.conf:/etc/resolv.conf"
-                  "/run/vpn-confinement/${nsName}/nsswitch.conf:/etc/nsswitch.conf"
-                ];
-                InaccessiblePaths = [
-                  "/run/nscd"
+            (mkIf strictDns (
+              let
+                inaccessiblePaths = [
                   "/run/resolvconf"
                   "-/run/systemd/resolve"
+                ]
+                ++ lib.optionals ns.dns.blockNscd [ "/run/nscd" ]
+                ++ lib.optionals ns.dns.blockSystemBus [
+                  "/run/dbus/system_bus_socket"
+                  "-/var/run/dbus/system_bus_socket"
                 ];
-              };
-            })
+              in
+              {
+                serviceConfig = {
+                  BindReadOnlyPaths = [
+                    "/run/vpn-confinement/${nsName}/resolv.conf:/etc/resolv.conf"
+                    "/run/vpn-confinement/${nsName}/nsswitch.conf:/etc/nsswitch.conf"
+                  ];
+                  InaccessiblePaths = inaccessiblePaths;
+                };
+              }
+            ))
             (mkIf (config.vpn.hardeningProfile == "strict") { serviceConfig = hardeningStrict; })
           ]);
         }

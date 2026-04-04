@@ -1,0 +1,58 @@
+_: {
+  name = "vpn-confinement-v2-hostlink-disabled-no-ingress";
+
+  nodes.machine =
+    { pkgs, ... }:
+    {
+      imports = [ ../../modules ];
+
+      networking.hostName = "vpnc-v2-hostlink-off";
+      system.stateVersion = "26.05";
+
+      services.vpnConfinement = {
+        enable = true;
+        namespaces.vpnapps = {
+          enable = true;
+          wireguard.interface = "wg0";
+          hostLink.enable = false;
+          ingress.fromHost.tcp = [ 8080 ];
+          dns = {
+            mode = "strict";
+            servers = [ "10.64.0.1" ];
+          };
+        };
+      };
+
+      networking.wireguard.interfaces.wg0 = {
+        privateKeyFile = "/run/wg-test/private.key";
+        ips = [ "10.71.216.231/32" ];
+        peers = [
+          {
+            publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
+            endpoint = "138.199.43.91:51820";
+            allowedIPs = [ "0.0.0.0/0" ];
+          }
+        ];
+      };
+
+      systemd.services.test-vpn-private-key = {
+        wantedBy = [ "multi-user.target" ];
+        before = [ "wireguard-wg0.service" ];
+        serviceConfig.Type = "oneshot";
+        script = ''
+          set -eu
+          ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
+          ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/private.key
+          ${pkgs.coreutils}/bin/chmod 0600 /run/wg-test/private.key
+        '';
+      };
+    };
+
+  testScript = ''
+    machine.wait_for_unit("multi-user.target")
+    machine.wait_for_unit("wireguard-wg0.service")
+    machine.fail("ip link show ve-vpnapps-host")
+    machine.fail("ip netns exec vpnapps ip link show ve-vpnapps-ns")
+    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 've-vpnapps-ns'")
+  '';
+}

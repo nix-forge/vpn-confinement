@@ -27,7 +27,10 @@
 - IPv6 fail-closed namespace default unless explicitly tunneled.
 - Resolver and nsswitch bind mounts in strict mode, with inaccessible host
   resolver helper paths.
-- WireGuard peer endpoints are required to be literal IP endpoints.
+- Optional strict DNS hardening toggles for system bus and nscd helper path
+  blocking.
+- WireGuard peer endpoints may be hostnames when periodic endpoint refresh is
+  enabled.
 
 ## Strict DNS caveat (important)
 
@@ -43,7 +46,7 @@ destination CIDRs.
   namespace policy.
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.
 - Applications that query host resolver APIs directly over D-Bus are not fully
-  covered unless bus access is also constrained.
+  covered unless bus access is also constrained (`dns.blockSystemBus = true`).
 - DoH/DoQ over generic egress is outside strict DNS guarantees unless
   destination allowlisting is configured.
 - `hostLink` is a convenience mode and expands attack surface relative to a pure

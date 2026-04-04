@@ -12,8 +12,10 @@ let
     filterAttrs
     hasSuffix
     mapAttrs'
+    mapAttrsToList
     mkEnableOption
     mkIf
+    mkMerge
     mkOption
     nameValuePair
     optionalString
@@ -29,6 +31,7 @@ let
 
   enabledNamespaces = filterAttrs (_: ns: ns.enable) cfg.namespaces;
   enabledNamespaceNames = attrNames enabledNamespaces;
+  namespaceNames = attrNames cfg.namespaces;
 
   servicesWithVpn = filterAttrs (_: svc: (svc.vpn.enable or false)) config.systemd.services;
   vpnEnabledServiceNames = attrNames servicesWithVpn;
@@ -263,8 +266,26 @@ let
   ) enabledNamespaces;
 
   wireguardAssignments = mapAttrs' (
-    nsName: ns: nameValuePair ns.wireguard.interface { interfaceNamespace = nsName; }
+    nsName: ns:
+    nameValuePair ns.wireguard.interface (
+      {
+        interfaceNamespace = nsName;
+        dynamicEndpointRefreshSeconds = lib.mkDefault ns.wireguard.dynamicEndpointRefreshSeconds;
+      }
+      // lib.optionalAttrs (ns.wireguard.socketNamespace != null) {
+        socketNamespace = lib.mkDefault ns.wireguard.socketNamespace;
+      }
+    )
   ) enabledNamespaces;
+
+  wgDependencyUnits = mkMerge (
+    mapAttrsToList (nsName: ns: {
+      "wireguard-${ns.wireguard.interface}" = {
+        after = [ "vpn-confinement-netns@${nsName}.service" ];
+        requires = [ "vpn-confinement-netns@${nsName}.service" ];
+      };
+    }) enabledNamespaces
+  );
 
   wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
 
@@ -308,6 +329,10 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.wireguard.interface must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]).";
       }
       {
+        assertion = ns.wireguard.dynamicEndpointRefreshSeconds >= 0;
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.dynamicEndpointRefreshSeconds must be >= 0.";
+      }
+      {
         assertion = builtins.all vpnLib.isLiteralCidr ns.egress.allowedCidrs;
         message = "services.vpnConfinement.namespaces.${nsName}.egress.allowedCidrs must contain literal IPv4/IPv6 CIDRs or IPs only.";
       }
@@ -329,9 +354,33 @@ let
                 map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
               );
             in
-            all vpnLib.isLiteralEndpoint endpoints
+            all vpnLib.isSupportedEndpoint endpoints
           );
-        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to be a literal IP endpoint (IPv4:port or [IPv6]:port). Hostnames are not supported.";
+        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to use either a literal IP endpoint (IPv4:port or [IPv6]:port) or a hostname endpoint (hostname:port).";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || (
+            let
+              wgConfig = config.networking.wireguard.interfaces.${wg};
+              peers = wgConfig.peers or [ ];
+              interfaceRefresh = wgConfig.dynamicEndpointRefreshSeconds or 0;
+              peerHasEffectiveRefresh =
+                peer:
+                let
+                  endpoint = peer.endpoint or null;
+                  peerRefresh =
+                    if (peer.dynamicEndpointRefreshSeconds or null) != null then
+                      peer.dynamicEndpointRefreshSeconds
+                    else
+                      interfaceRefresh;
+                in
+                endpoint == null || !vpnLib.endpointIsHostname endpoint || peerRefresh > 0;
+            in
+            builtins.all peerHasEffectiveRefresh peers
+          );
+        message = "services.vpnConfinement.namespaces.${nsName} requires hostname WireGuard endpoints to have periodic refresh enabled (networking.wireguard.interfaces.${wg}.dynamicEndpointRefreshSeconds > 0 or peer dynamicEndpointRefreshSeconds > 0).";
       }
       {
         assertion =
@@ -461,6 +510,16 @@ in
                   type = types.str;
                   default = "wg0";
                 };
+
+                socketNamespace = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                };
+
+                dynamicEndpointRefreshSeconds = mkOption {
+                  type = types.int;
+                  default = 0;
+                };
               };
 
               dns = {
@@ -480,6 +539,16 @@ in
                 search = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
+                };
+
+                blockNscd = mkOption {
+                  type = types.bool;
+                  default = false;
+                };
+
+                blockSystemBus = mkOption {
+                  type = types.bool;
+                  default = false;
                 };
               };
 
@@ -572,8 +641,16 @@ in
   config = mkIf cfg.enable {
     assertions = [
       {
+        assertion = vpnLib.isValidNamespaceName cfg.defaultNamespace;
+        message = "services.vpnConfinement.defaultNamespace must match [A-Za-z0-9_.-]+ and be at most 64 characters.";
+      }
+      {
         assertion = builtins.hasAttr cfg.defaultNamespace cfg.namespaces;
         message = "services.vpnConfinement.defaultNamespace must exist in services.vpnConfinement.namespaces.";
+      }
+      {
+        assertion = all vpnLib.isValidNamespaceName namespaceNames;
+        message = "services.vpnConfinement.namespaces keys must match [A-Za-z0-9_.-]+ and be at most 64 characters.";
       }
       {
         assertion = unique wgNames == wgNames;
@@ -602,7 +679,10 @@ in
 
     warnings = rootWarnings;
 
-    systemd.services = namespaceUnits;
+    systemd.services = mkMerge [
+      namespaceUnits
+      wgDependencyUnits
+    ];
     networking.wireguard.interfaces = wireguardAssignments;
   };
 }

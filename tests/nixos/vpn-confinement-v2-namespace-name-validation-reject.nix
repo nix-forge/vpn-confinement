@@ -1,23 +1,21 @@
 _: {
-  name = "vpn-confinement-v2-advanced-option-removal-reject";
+  name = "vpn-confinement-v2-namespace-name-validation-reject";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-advanced-option-removal-reject";
+    networking.hostName = "vpnc-v2-ns-name-reject";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
-      namespaces.vpnapps = {
+      defaultNamespace = "bad/name";
+      namespaces."bad/name" = {
         enable = true;
-        wireguard = {
-          interface = "wg0";
-        };
+        wireguard.interface = "wg0";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
-          blockedPorts = [ 53 ];
         };
       };
     };
@@ -32,17 +30,6 @@ _: {
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];
-    };
-
-    systemd.services.bad-advanced-options = {
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = "${builtins.storeDir}/not-used";
-      };
-      vpn = {
-        enable = true;
-        dependsOnTunnel = false;
-      };
     };
   };
 }

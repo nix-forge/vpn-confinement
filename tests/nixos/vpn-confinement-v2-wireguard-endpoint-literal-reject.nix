@@ -22,6 +22,7 @@ _: {
     networking.wireguard.interfaces.wg0 = {
       privateKeyFile = "/run/wg-test/private.key";
       ips = [ "10.71.216.231/32" ];
+      dynamicEndpointRefreshSeconds = 0;
       peers = [
         {
           publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
