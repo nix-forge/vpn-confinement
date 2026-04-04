@@ -77,11 +77,6 @@ in
               default = null;
             };
 
-            dependsOnTunnel = mkOption {
-              type = types.bool;
-              default = true;
-            };
-
             hardeningProfile = mkOption {
               type = types.enum [
                 "baseline"
@@ -107,7 +102,7 @@ in
                 );
               };
             }
-            (mkIf (config.vpn.dependsOnTunnel && nsExists) {
+            (mkIf nsExists {
               after = [ "wireguard-${wgIf}.service" ];
               requires = [ "wireguard-${wgIf}.service" ];
               bindsTo = [ "wireguard-${wgIf}.service" ];
@@ -115,8 +110,8 @@ in
             (mkIf strictDns {
               serviceConfig = {
                 BindReadOnlyPaths = [
-                  "${ns.resolvConfPath}:/etc/resolv.conf"
-                  "${ns.nsswitchPath}:/etc/nsswitch.conf"
+                  "/run/vpn-confinement/${nsName}/resolv.conf:/etc/resolv.conf"
+                  "/run/vpn-confinement/${nsName}/nsswitch.conf:/etc/nsswitch.conf"
                 ];
                 InaccessiblePaths = [
                   "/run/nscd"

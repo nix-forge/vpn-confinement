@@ -49,15 +49,25 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-egress-allowlist.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-socket-activation-reject = mkEvalRejectCheck "vpn-confinement-v2-socket-activation-reject" ../../tests/nixos/vpn-confinement-v2-socket-activation-reject.nix;
+      checks.vpn-confinement-v2-socket-activation = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-socket-activation.nix { inherit pkgs; }
+      );
 
       checks.vpn-confinement-v2-egress-ipv6-cidr-reject = mkEvalRejectCheck "vpn-confinement-v2-egress-ipv6-cidr-reject" ../../tests/nixos/vpn-confinement-v2-egress-ipv6-cidr-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-endpoint-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-literal-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-literal-reject.nix;
 
+      checks.vpn-confinement-v2-wireguard-endpoint-ipv6-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-ipv6-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-ipv6-reject.nix;
+
+      checks.vpn-confinement-v2-ipv6-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-ipv6-literal-reject" ../../tests/nixos/vpn-confinement-v2-ipv6-literal-reject.nix;
+
+      checks.vpn-confinement-v2-cidr-prefix-reject = mkEvalRejectCheck "vpn-confinement-v2-cidr-prefix-reject" ../../tests/nixos/vpn-confinement-v2-cidr-prefix-reject.nix;
+
       checks.vpn-confinement-v2-interface-name-validation-reject = mkEvalRejectCheck "vpn-confinement-v2-interface-name-validation-reject" ../../tests/nixos/vpn-confinement-v2-interface-name-validation-reject.nix;
 
       checks.vpn-confinement-v2-api-removal-reject = mkEvalRejectCheck "vpn-confinement-v2-api-removal-reject" ../../tests/nixos/vpn-confinement-v2-api-removal-reject.nix;
+
+      checks.vpn-confinement-v2-advanced-option-removal-reject = mkEvalRejectCheck "vpn-confinement-v2-advanced-option-removal-reject" ../../tests/nixos/vpn-confinement-v2-advanced-option-removal-reject.nix;
 
       checks.vpn-confinement-v2-root-warning =
         let

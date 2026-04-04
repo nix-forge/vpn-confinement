@@ -27,49 +27,93 @@ let
     in
     match != null && all ipv4OctetValid match;
 
-  isLiteralIpv6 =
-    value: hasInfix ":" value && builtins.match "^[0-9A-Fa-f:.]+$" value != null && !hasInfix "/" value;
+  parseNumber =
+    value:
+    let
+      parsed = builtins.tryEval (builtins.fromJSON value);
+    in
+    if builtins.match "^[0-9]+$" value == null || !parsed.success || !(builtins.isInt parsed.value) then
+      null
+    else
+      parsed.value;
+
+  isValidHextet = value: builtins.match "^[0-9A-Fa-f]{1,4}$" value != null;
+
+  hasEmptyPart = parts: builtins.any (part: part == "") parts;
+
+  parseIpv6Side =
+    parts:
+    let
+      indexed = builtins.genList (idx: {
+        inherit idx;
+        part = builtins.elemAt parts idx;
+      }) (length parts);
+      ipv4Tail = builtins.filter (item: isLiteralIpv4 item.part) indexed;
+      ipv4TailValid =
+        length ipv4Tail == 0
+        || (length ipv4Tail == 1 && (builtins.head ipv4Tail).idx == (length parts - 1));
+      partsValid = all (item: isValidHextet item.part || isLiteralIpv4 item.part) indexed;
+      groups = builtins.foldl' (acc: item: acc + (if isLiteralIpv4 item.part then 2 else 1)) 0 indexed;
+    in
+    {
+      valid = (!hasEmptyPart parts) && ipv4TailValid && partsValid;
+      inherit groups;
+    };
+
+  parseIpv6Literal =
+    value:
+    if value == "" || !hasInfix ":" value || hasInfix "/" value || hasInfix "%" value then
+      false
+    else if hasInfix "::" value then
+      let
+        compressed = splitString "::" value;
+      in
+      if length compressed != 2 then
+        false
+      else
+        let
+          leftRaw = builtins.elemAt compressed 0;
+          rightRaw = builtins.elemAt compressed 1;
+          left =
+            if leftRaw == "" then
+              {
+                valid = true;
+                groups = 0;
+              }
+            else
+              parseIpv6Side (splitString ":" leftRaw);
+          right =
+            if rightRaw == "" then
+              {
+                valid = true;
+                groups = 0;
+              }
+            else
+              parseIpv6Side (splitString ":" rightRaw);
+          explicitGroups = left.groups + right.groups;
+        in
+        left.valid && right.valid && explicitGroups < 8
+    else
+      let
+        parsed = parseIpv6Side (splitString ":" value);
+      in
+      parsed.valid && parsed.groups == 8;
+
+  isLiteralIpv6 = parseIpv6Literal;
 
   dnsSplit = servers: {
     ipv4 = builtins.filter isLiteralIpv4 servers;
     ipv6 = builtins.filter isLiteralIpv6 servers;
   };
 
-  parsePrefix =
-    value:
-    let
-      digits = builtins.match "^0*([0-9]+)$" value;
-      normalized = if digits == null then null else builtins.elemAt digits 0;
-      parsed =
-        if normalized == null then
-          { success = false; }
-        else
-          builtins.tryEval (builtins.fromJSON normalized);
-    in
-    if
-      builtins.match "^[0-9]{1,3}$" value == null || !parsed.success || !(builtins.isInt parsed.value)
-    then
-      null
-    else
-      parsed.value;
+  parsePrefix = parseNumber;
 
   parsePort =
     value:
     let
-      digits = builtins.match "^0*([0-9]+)$" value;
-      normalized = if digits == null then null else builtins.elemAt digits 0;
-      parsed =
-        if normalized == null then
-          { success = false; }
-        else
-          builtins.tryEval (builtins.fromJSON normalized);
+      parsed = parseNumber value;
     in
-    if
-      builtins.match "^[0-9]{1,5}$" value == null || !parsed.success || !(builtins.isInt parsed.value)
-    then
-      null
-    else
-      parsed.value;
+    if builtins.match "^[0-9]{1,5}$" value == null || parsed == null then null else parsed;
 
   parseCidr =
     value:
@@ -80,13 +124,21 @@ let
     if partsLen == 1 then
       {
         address = builtins.elemAt parts 0;
+        hasPrefix = false;
         prefix = null;
       }
     else if partsLen == 2 then
-      {
-        address = builtins.elemAt parts 0;
+      let
         prefix = parsePrefix (builtins.elemAt parts 1);
-      }
+      in
+      if prefix == null then
+        null
+      else
+        {
+          address = builtins.elemAt parts 0;
+          hasPrefix = true;
+          inherit prefix;
+        }
     else
       null;
 
@@ -97,7 +149,7 @@ let
     in
     parsed != null
     && isLiteralIpv4 parsed.address
-    && (parsed.prefix == null || (parsed.prefix >= 0 && parsed.prefix <= 32));
+    && ((!parsed.hasPrefix) || (parsed.prefix >= 0 && parsed.prefix <= 32));
 
   isLiteralIpv6Cidr =
     value:
@@ -106,7 +158,7 @@ let
     in
     parsed != null
     && isLiteralIpv6 parsed.address
-    && (parsed.prefix == null || (parsed.prefix >= 0 && parsed.prefix <= 128));
+    && ((!parsed.hasPrefix) || (parsed.prefix >= 0 && parsed.prefix <= 128));
 
   isLiteralCidr = value: isLiteralIpv4Cidr value || isLiteralIpv6Cidr value;
 
@@ -121,7 +173,7 @@ let
   endpointIpv4Match =
     value: builtins.match "^([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}):([0-9]{1,5})$" value;
 
-  endpointIpv6Match = value: builtins.match "^[[]([0-9A-Fa-f:.]+)[]]:([0-9]{1,5})$" value;
+  endpointIpv6Match = value: builtins.match "^[[](.+)[]]:([0-9]{1,5})$" value;
 
   isLiteralIpv4Endpoint =
     value:

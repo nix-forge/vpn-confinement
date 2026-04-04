@@ -10,12 +10,14 @@ let
     attrNames
     concatMapStringsSep
     filterAttrs
+    hasSuffix
     mapAttrs'
     mkEnableOption
     mkIf
     mkOption
     nameValuePair
     optionalString
+    removeSuffix
     splitString
     types
     unique
@@ -31,12 +33,33 @@ let
   servicesWithVpn = filterAttrs (_: svc: (svc.vpn.enable or false)) config.systemd.services;
   vpnEnabledServiceNames = attrNames servicesWithVpn;
 
+  socketsWithVpn = filterAttrs (_: socket: (socket.vpn.enable or false)) config.systemd.sockets;
+  vpnEnabledSocketNames = attrNames socketsWithVpn;
+
   nsFor =
     serviceName:
     let
       inherit (config.systemd.services.${serviceName}) vpn;
     in
     if vpn.namespace != null then vpn.namespace else cfg.defaultNamespace;
+
+  nsForSocket =
+    socketName:
+    let
+      inherit (config.systemd.sockets.${socketName}) vpn;
+    in
+    if vpn.namespace != null then vpn.namespace else cfg.defaultNamespace;
+
+  socketTargetUnit =
+    socketName:
+    let
+      socket = config.systemd.sockets.${socketName};
+      configured = socket.socketConfig.Service or null;
+    in
+    if configured == null then "${socketName}.service" else configured;
+
+  serviceNameFromUnit =
+    unit: if hasSuffix ".service" unit then removeSuffix ".service" unit else unit;
 
   namespacePath = nsName: "/run/netns/${nsName}";
   runtimePath = nsName: "/run/vpn-confinement/${nsName}";
@@ -45,15 +68,17 @@ let
 
   hostLinkEnabled = _nsName: ns: ns.hostLink.enable;
 
-  mkDnsBlockedPortRules =
-    ns:
-    let
-      blocked = unique ns.dns.blockedPorts;
-    in
-    optionalString (blocked != [ ]) ''
-      oifname "${ns.wireguard.interface}" udp dport ${vpnLib.renderPortSet blocked} drop
-      oifname "${ns.wireguard.interface}" tcp dport ${vpnLib.renderPortSet blocked} drop
-    '';
+  blockedDnsPorts = [
+    53
+    853
+    5353
+    5355
+  ];
+
+  mkDnsBlockedPortRules = ns: ''
+    oifname "${ns.wireguard.interface}" udp dport ${vpnLib.renderPortSet blockedDnsPorts} drop
+    oifname "${ns.wireguard.interface}" tcp dport ${vpnLib.renderPortSet blockedDnsPorts} drop
+  '';
 
   mkDnsOutputRules =
     ns:
@@ -238,11 +263,7 @@ let
   ) enabledNamespaces;
 
   wireguardAssignments = mapAttrs' (
-    nsName: ns:
-    nameValuePair ns.wireguard.interface {
-      interfaceNamespace = nsName;
-      inherit (ns.wireguard) socketNamespace;
-    }
+    nsName: ns: nameValuePair ns.wireguard.interface { interfaceNamespace = nsName; }
   ) enabledNamespaces;
 
   wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
@@ -362,26 +383,43 @@ let
     ]
   ) vpnEnabledServiceNames;
 
-  socketServiceNames = builtins.attrNames config.systemd.sockets;
-
-  socketTargets = builtins.concatLists (
-    map (
-      socketName:
-      let
-        socket = config.systemd.sockets.${socketName};
-        configured = socket.socketConfig.Service or null;
-        fallback = "${socketName}.service";
-      in
-      if configured == null then [ fallback ] else [ configured ]
-    ) socketServiceNames
-  );
-
-  socketAssertions = builtins.concatMap (serviceName: [
-    {
-      assertion = !(builtins.elem "${serviceName}.service" socketTargets);
-      message = "vpn-confinement does not support socket-activated units: ${serviceName}.service is referenced by a .socket unit.";
-    }
-  ]) vpnEnabledServiceNames;
+  socketAssertions = builtins.concatMap (
+    socketName:
+    let
+      nsName = nsForSocket socketName;
+      targetUnit = socketTargetUnit socketName;
+      targetService = serviceNameFromUnit targetUnit;
+      targetExists = builtins.hasAttr targetService config.systemd.services;
+      targetVpnEnabled = targetExists && (config.systemd.services.${targetService}.vpn.enable or false);
+      socketUnit = if hasSuffix ".socket" socketName then socketName else "${socketName}.socket";
+    in
+    [
+      {
+        assertion = builtins.hasAttr nsName cfg.namespaces;
+        message = "systemd.sockets.${socketName}.vpn.namespace references unknown namespace ${nsName}.";
+      }
+      {
+        assertion = cfg.namespaces.${nsName}.enable;
+        message = "systemd.sockets.${socketName}.vpn.namespace references disabled namespace ${nsName}.";
+      }
+      {
+        assertion = hasSuffix ".service" targetUnit;
+        message = "systemd.sockets.${socketName}.socketConfig.Service must reference a .service unit (got ${targetUnit}).";
+      }
+      {
+        assertion = targetExists;
+        message = "systemd.sockets.${socketName} references missing ${targetUnit}. Define systemd.services.${targetService} for vpn-enabled sockets.";
+      }
+      {
+        assertion = targetVpnEnabled;
+        message = "systemd.sockets.${socketName}.vpn.enable requires systemd.services.${targetService}.vpn.enable = true so socket and service share the same namespace policy.";
+      }
+      {
+        assertion = !targetVpnEnabled || nsFor targetService == nsName;
+        message = "systemd.sockets.${socketName}.vpn.namespace (${nsName}) must match systemd.services.${targetService}.vpn.namespace for ${socketUnit}.";
+      }
+    ]
+  ) vpnEnabledSocketNames;
 
   rootWarnings = builtins.concatMap (
     serviceName:
@@ -397,7 +435,10 @@ let
   ) vpnEnabledServiceNames;
 in
 {
-  imports = [ ./service-extension.nix ];
+  imports = [
+    ./service-extension.nix
+    ./socket-extension.nix
+  ];
 
   options.services.vpnConfinement = {
     enable = mkEnableOption "VPN confinement for selected systemd services";
@@ -415,33 +456,10 @@ in
             options = {
               enable = mkEnableOption "VPN confinement namespace";
 
-              path = mkOption {
-                type = types.str;
-                default = namespacePath name;
-                readOnly = true;
-              };
-
-              resolvConfPath = mkOption {
-                type = types.str;
-                default = resolvConfPath name;
-                readOnly = true;
-              };
-
-              nsswitchPath = mkOption {
-                type = types.str;
-                default = nsswitchPath name;
-                readOnly = true;
-              };
-
               wireguard = {
                 interface = mkOption {
                   type = types.str;
                   default = "wg0";
-                };
-
-                socketNamespace = mkOption {
-                  type = types.nullOr types.str;
-                  default = null;
                 };
               };
 
@@ -462,16 +480,6 @@ in
                 search = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
-                };
-
-                blockedPorts = mkOption {
-                  type = types.listOf types.port;
-                  default = [
-                    53
-                    853
-                    5353
-                    5355
-                  ];
                 };
               };
 

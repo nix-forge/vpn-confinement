@@ -1,0 +1,44 @@
+{ lib, config, ... }:
+let
+  inherit (lib)
+    mkEnableOption
+    mkIf
+    mkMerge
+    mkOption
+    types
+    ;
+
+  rootConfig = config;
+in
+{
+  options.systemd.sockets = mkOption {
+    type = types.attrsOf (
+      types.submodule (
+        { config, ... }:
+        let
+          vcfg = rootConfig.services.vpnConfinement;
+          nsName = if config.vpn.namespace != null then config.vpn.namespace else vcfg.defaultNamespace;
+        in
+        {
+          options.vpn = {
+            enable = mkEnableOption "run this socket in the VPN confinement namespace";
+
+            namespace = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+            };
+          };
+
+          config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
+            {
+              after = [ "vpn-confinement-netns@${nsName}.service" ];
+              requires = [ "vpn-confinement-netns@${nsName}.service" ];
+              bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
+              socketConfig.NetworkNamespacePath = "/run/netns/${nsName}";
+            }
+          ]);
+        }
+      )
+    );
+  };
+}

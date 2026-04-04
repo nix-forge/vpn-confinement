@@ -6,12 +6,12 @@ services.
 ## Design
 
 - Services opt in with `systemd.services.<name>.vpn.enable = true`.
+- Socket units opt in with `systemd.sockets.<name>.vpn.enable = true`.
 - Per-service behavior config is limited to namespace attachment and hardening;
   network policy is namespace-level.
 - Confinement uses a dedicated Linux network namespace at `/run/netns/<name>`.
 - WireGuard is configured via `networking.wireguard.interfaces.<if>` and
-  assigned with `interfaceNamespace`; `socketNamespace` is set intentionally per
-  namespace configuration.
+  assigned with `interfaceNamespace`.
 - Namespace-local nftables enforces deny-by-default egress and allows only
   tunnel traffic according to namespace egress mode.
 - A namespace-specific `resolv.conf` is bind-mounted into confined units.
@@ -38,8 +38,8 @@ services.
 - The trust boundary is the namespace, not the individual service.
 - Confined services fail closed if tunnel dependencies are required and
   unavailable.
-- Runtime tunnel drops are propagated to confined services with
-  `BindsTo=wireguard-<if>.service` when `dependsOnTunnel = true`.
+- Runtime tunnel drops are propagated to vpn-enabled services and sockets with
+  `BindsTo=wireguard-<if>.service`.
 - DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
   ports.
 - WireGuard peer endpoints must be literal IP endpoints to avoid hostname
@@ -53,8 +53,22 @@ services.
   port-based policy.
 - DNS-over-HTTPS/DNS-over-QUIC can still traverse generic egress paths unless
   destination allowlisting is enabled.
-- Socket-activated services are not supported.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
 - For strict environments, combine confinement with application policy and
   egress inspection.
+
+## Why netns over policy routing
+
+- The module is designed for "only selected services use VPN". A dedicated
+  namespace is a cleaner trust boundary than host-global policy-routing rules.
+- The WireGuard interface is moved into the namespace, so confined cleartext
+  traffic lives inside that namespace boundary.
+- This model minimizes accidental clearnet fallback paths for confined units and
+  keeps host networking behavior unchanged for non-confined services.
+
+## Compatibility baseline
+
+- Supported baseline: NixOS 26.05+.
+- This assumes modern systemd features required by this module, including
+  `NetworkNamespacePath=` and `RestrictNetworkInterfaces=`.

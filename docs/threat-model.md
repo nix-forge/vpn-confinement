@@ -29,12 +29,22 @@
   resolver helper paths.
 - WireGuard peer endpoints are required to be literal IP endpoints.
 
+## Strict DNS caveat (important)
+
+Strict DNS prevents libc/system resolver leaks and blocks classic
+DNS/DoT/mDNS/LLMNR leaks. It does not fully control applications that
+intentionally bypass `/etc/resolv.conf` or use their own encrypted DNS stack.
+For those applications, use `egress.mode = "allowList"` with constrained
+destination CIDRs.
+
 ## Operational constraints
 
-- Socket-activated services are rejected because this module only rewrites
-  `systemd.services` units.
+- Socket and service units can both be vpn-enabled and should share the same
+  namespace policy.
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.
 - Applications that query host resolver APIs directly over D-Bus are not fully
   covered unless bus access is also constrained.
 - DoH/DoQ over generic egress is outside strict DNS guarantees unless
   destination allowlisting is configured.
+- `hostLink` is a convenience mode and expands attack surface relative to a pure
+  tunnel-only namespace. Keep it disabled unless host reachability is required.

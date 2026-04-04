@@ -6,11 +6,9 @@
 - `services.vpnConfinement.defaultNamespace`
 - `services.vpnConfinement.namespaces.<name>.enable`
 - `services.vpnConfinement.namespaces.<name>.wireguard.interface`
-- `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
 - `services.vpnConfinement.namespaces.<name>.dns.mode`
 - `services.vpnConfinement.namespaces.<name>.dns.servers`
 - `services.vpnConfinement.namespaces.<name>.dns.search`
-- `services.vpnConfinement.namespaces.<name>.dns.blockedPorts`
 - `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 - `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 - `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
@@ -29,8 +27,12 @@
 
 - `systemd.services.<name>.vpn.enable`
 - `systemd.services.<name>.vpn.namespace`
-- `systemd.services.<name>.vpn.dependsOnTunnel`
 - `systemd.services.<name>.vpn.hardeningProfile`
+
+## Per socket
+
+- `systemd.sockets.<name>.vpn.enable`
+- `systemd.sockets.<name>.vpn.namespace`
 
 ## Behavior notes
 
@@ -44,4 +46,12 @@
   `DynamicUser = true` or non-root `User` is set.
 - Namespace is the trust boundary. Services in one namespace share firewall and
   DNS policy.
-- Socket-activated services are not supported.
+- Socket units can be vpn-enabled and should match namespace policy with their
+  target service.
+
+## Breaking changes in this version
+
+- Removed `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`.
+- Removed `services.vpnConfinement.namespaces.<name>.dns.blockedPorts`.
+- Removed `systemd.services.<name>.vpn.dependsOnTunnel`.
+- Socket-activated units are now supported via `systemd.sockets.<name>.vpn.*`.

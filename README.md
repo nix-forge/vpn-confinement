@@ -3,17 +3,23 @@
 NixOS module for confining selected systemd services to a WireGuard-routed
 network namespace.
 
+## Why network namespaces
+
+`vpn-confinement` uses a dedicated network namespace per trust domain. This
+matches WireGuard's namespace model and gives a stronger fail-closed boundary
+than policy-routing-only setups for the "only these services use VPN" case.
+
 ## Features
 
 - Per-service opt-in via `systemd.services.<name>.vpn.enable`
+- Per-socket opt-in via `systemd.sockets.<name>.vpn.enable`
 - Service-level API for namespace attachment and hardening only
 - Namespace-scoped policy (`one namespace = one trust domain`)
 - Native NixOS WireGuard integration via `networking.wireguard.interfaces`
 - Namespace-local nftables kill-switch
 - Namespace DNS policy with strict/relaxed modes and leak-port blocking
 - IPv6 fail-closed default (`disable` unless explicitly tunneled)
-- Runtime fail-closed service lifecycle with `BindsTo=wireguard-<if>.service`
-- Explicit rejection of socket-activated services
+- Runtime fail-closed lifecycle with `BindsTo=wireguard-<if>.service`
 
 ## Quick start
 
@@ -23,13 +29,10 @@ network namespace.
 
   services.vpnConfinement = {
     enable = true;
+    defaultNamespace = "vpnapps";
     namespaces.vpnapps = {
       enable = true;
       wireguard.interface = "wg0";
-      wireguard.socketNamespace = null;
-      hostLink.enable = true;
-      hostLink.hostAddressIPv4 = "10.231.0.1";
-      hostLink.nsAddressIPv4 = "10.231.0.2";
       dns = {
         mode = "strict";
         servers = [ "10.64.0.1" ];
@@ -51,19 +54,68 @@ network namespace.
     ];
   };
 
-  systemd.services.my-service.vpn.enable = true;
+  systemd.services.my-service.vpn = {
+    enable = true;
+    namespace = "vpnapps";
+    hardeningProfile = "baseline";
+  };
+}
+```
+
+## Hardened example
+
+```nix
+{
+  imports = [ vpn-confinement.nixosModules.default ];
+
+  services.vpnConfinement = {
+    enable = true;
+    defaultNamespace = "vpnapps";
+
+    namespaces.vpnapps = {
+      enable = true;
+      wireguard.interface = "wg0";
+
+      dns = {
+        mode = "strict";
+        servers = [ "10.64.0.1" ];
+      };
+
+      ipv6.mode = "disable";
+
+      egress = {
+        mode = "allowList";
+        allowedTcpPorts = [ 443 80 ];
+        allowedUdpPorts = [ 123 ];
+        allowedCidrs = [
+          "1.1.1.1/32"
+          "9.9.9.9/32"
+        ];
+      };
+
+      hostLink.enable = false;
+    };
+  };
+
+  systemd.services.qbittorrent.vpn = {
+    enable = true;
+    namespace = "vpnapps";
+    hardeningProfile = "strict";
+  };
 }
 ```
 
 ## API notes
 
 - Per-service config lives at `systemd.services.<name>.vpn.*`:
-  - `namespace`, `dependsOnTunnel`, `hardeningProfile`
+  - `enable`, `namespace`, `hardeningProfile`
+- Per-socket config lives at `systemd.sockets.<name>.vpn.*`:
+  - `enable`, `namespace`
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
-  - `wireguard.interface` and `wireguard.socketNamespace`
+  - `wireguard.interface`
   - `dns.mode = "strict" | "relaxed"`
-  - `dns.blockedPorts = [ 53 853 5353 5355 ]` (when mode is `strict`)
+  - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `ipv6.mode = "disable" | "tunnel"` (default: `disable`)
   - `egress.mode = "allowAllTunnel" | "allowList"`
@@ -78,8 +130,24 @@ network namespace.
   endpoints (`IPv4:port` or `[IPv6]:port`); hostname endpoints are rejected.
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
-- Only `systemd.services` units are supported; socket-activated services are
-  rejected.
+
+## Compatibility vs strict
+
+- `dns.mode = "strict"` is the secure default: namespace resolver bind mounts,
+  resolver helper path blocking, and DNS-like leak-port blocking.
+- `dns.mode = "relaxed"` removes strict resolver pinning and leak-port blocking
+  for compatibility with software that needs custom resolver flows.
+- If an application intentionally bypasses system resolver behavior, use
+  `egress.mode = "allowList"` with constrained `allowedCidrs`.
+
+## Threat model notes
+
+- Namespace isolation is the primary boundary; services inside a namespace share
+  DNS/firewall policy.
+- `hostLink` is a convenience mode for host-to-namespace connectivity. It is
+  less pure than a tunnel-only namespace and should stay disabled unless needed.
+- nftables is intentionally kept as the enforcement backend; the static ruleset
+  design is appropriate for this module's policy model.
 
 ## DNS caveat
 
@@ -92,6 +160,24 @@ network namespace.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
   `egress.mode = "allowList"` with constrained `allowedCidrs`).
+
+## Compatibility baseline
+
+- Supported baseline: NixOS 26.05 or newer.
+- This baseline assumes modern systemd support for namespace controls used by
+  this module (notably `NetworkNamespacePath=` and
+  `RestrictNetworkInterfaces=`).
+
+## Troubleshooting
+
+- If WireGuard client traffic does not pass on NixOS, reverse-path filtering can
+  be the issue. Try `networking.firewall.checkReversePath = "loose";` as a
+  troubleshooting step.
+
+## Development
+
+- Format: `nix fmt`
+- Validation: `nix flake check`
 
 ## License
 
