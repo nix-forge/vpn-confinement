@@ -1,6 +1,7 @@
 { lib, config, ... }:
 let
   inherit (lib)
+    attrByPath
     mkEnableOption
     mkIf
     mkMerge
@@ -18,6 +19,9 @@ in
         let
           vcfg = rootConfig.services.vpnConfinement;
           nsName = if config.vpn.namespace != null then config.vpn.namespace else vcfg.defaultNamespace;
+          ns = attrByPath [ nsName ] null vcfg.namespaces;
+          nsExists = ns != null;
+          wgIf = if nsExists then ns.wireguard.interface else "wg0";
         in
         {
           options.vpn = {
@@ -36,6 +40,11 @@ in
               bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
               socketConfig.NetworkNamespacePath = "/run/netns/${nsName}";
             }
+            (mkIf nsExists {
+              after = [ "wireguard-${wgIf}.service" ];
+              requires = [ "wireguard-${wgIf}.service" ];
+              bindsTo = [ "wireguard-${wgIf}.service" ];
+            })
           ]);
         }
       )

@@ -1,4 +1,9 @@
-{ lib, config, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
 let
   inherit (lib)
     attrByPath
@@ -11,6 +16,7 @@ let
     ;
 
   rootConfig = config;
+  vpnLib = import ./lib.nix { inherit lib; };
 
   hardeningBaseline = {
     NoNewPrivileges = mkDefault true;
@@ -56,6 +62,16 @@ in
           ns = attrByPath [ nsName ] null vcfg.namespaces;
           nsExists = ns != null;
           strictDns = nsExists && ns.dns.mode == "strict";
+          resolvText =
+            if nsExists then
+              pkgs.writeText "vpn-confinement-${nsName}.resolv.conf" (vpnLib.renderResolvConf ns.dns)
+            else
+              null;
+          nsswitchText =
+            if nsExists then
+              pkgs.writeText "vpn-confinement-${nsName}.nsswitch.conf" (vpnLib.renderNsswitchConf ns.dns)
+            else
+              null;
           withHostLink = nsExists && ns.hostLink.enable;
           wgIf = if nsExists then ns.wireguard.interface else "wg0";
           familySet =
@@ -116,8 +132,8 @@ in
                   "/run/resolvconf"
                   "-/run/systemd/resolve"
                 ]
-                ++ lib.optionals (!ns.dns.compatibilityMode) [ "/run/nscd" ]
-                ++ lib.optionals (!ns.dns.compatibilityMode) [
+                ++ lib.optionals (!ns.dns.allowResolverHelpers) [ "/run/nscd" ]
+                ++ lib.optionals (!ns.dns.allowResolverHelpers) [
                   "/run/dbus/system_bus_socket"
                   "-/var/run/dbus/system_bus_socket"
                 ];
@@ -125,8 +141,8 @@ in
               {
                 serviceConfig = {
                   BindReadOnlyPaths = [
-                    "/run/vpn-confinement/${nsName}/resolv.conf:/etc/resolv.conf"
-                    "/run/vpn-confinement/${nsName}/nsswitch.conf:/etc/nsswitch.conf"
+                    "${resolvText}:/etc/resolv.conf"
+                    "${nsswitchText}:/etc/nsswitch.conf"
                   ];
                   InaccessiblePaths = inaccessiblePaths;
                 };

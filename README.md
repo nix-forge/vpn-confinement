@@ -20,6 +20,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Namespace DNS policy with strict/relaxed modes and leak-port blocking
 - IPv6 fail-closed default (`disable` unless explicitly tunneled)
 - Runtime fail-closed lifecycle with `BindsTo=wireguard-<if>.service`
+- No runtime writes to `/etc` or `/etc/netns`
 
 ## Quick start
 
@@ -115,10 +116,9 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
   - `wireguard.interface`
-  - `wireguard.socketNamespace = null | <name>`
-  - `wireguard.dynamicEndpointRefreshSeconds = <int>` (default `0`)
+  - `wireguard.socketNamespace = null | "init" | <name>`
   - `dns.mode = "strict" | "relaxed"`
-  - `dns.compatibilityMode = false` by default
+  - `dns.allowResolverHelpers = false` by default
   - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `hostLink.subnetIPv4 = null | "x.x.x.x/30"` (`null` auto-allocates from
@@ -132,12 +132,14 @@ than policy-routing-only setups for the "only these services use VPN" case.
   leak rules, put them in different namespaces.
 - Strict DNS also binds namespace-local `nsswitch.conf` with
   `hosts: files myhostname dns` and blocks host resolver helper paths.
-- Namespace resolver config is written to `/etc/netns/<name>/resolv.conf` and
-  `/etc/netns/<name>/nsswitch.conf` for `ip netns exec` parity.
+- Strict DNS bind-mounts immutable store-generated resolver files directly onto
+  `/etc/resolv.conf` and `/etc/nsswitch.conf` inside the confined unit.
 - `networking.wireguard.interfaces.<if>.peers.*.endpoint` may use literal IP
   endpoints (`IPv4:port` or `[IPv6]:port`) or hostname endpoints
   (`hostname:port`). Hostname endpoints require refresh
   (`dynamicEndpointRefreshSeconds > 0` at interface or peer level).
+- Hostname endpoint refresh is owned by upstream
+  `networking.wireguard.interfaces.<if>`, not the confinement namespace API.
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
 
@@ -147,6 +149,8 @@ than policy-routing-only setups for the "only these services use VPN" case.
   resolver helper path blocking, and DNS-like leak-port blocking.
 - `dns.mode = "relaxed"` removes strict resolver pinning and leak-port blocking
   for compatibility with software that needs custom resolver flows.
+- `dns.allowResolverHelpers = true` is the expert escape hatch for strict mode
+  workloads that still need host resolver helpers like nscd or system D-Bus.
 - If an application intentionally bypasses system resolver behavior, use
   `egress.mode = "allowList"` with constrained `allowedCidrs`.
 
@@ -166,12 +170,12 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
   configured resolver paths when `dns.mode = "strict"`.
 - Strict mode defaults to maximal helper blocking
-  (`dns.compatibilityMode = false`), including `/run/nscd` and system D-Bus
+  (`dns.allowResolverHelpers = false`), including `/run/nscd` and system D-Bus
   sockets for confined services.
 - Applications that directly call host resolver APIs over D-Bus are outside this
-  guarantee when `dns.compatibilityMode = true`.
-- Set `dns.compatibilityMode = true` only for workloads that need host resolver
-  helper access and accept the weaker DNS containment.
+  guarantee when `dns.allowResolverHelpers = true`.
+- Set `dns.allowResolverHelpers = true` only for workloads that need host
+  resolver helper access and accept the weaker DNS containment.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
   `egress.mode = "allowList"` with constrained `allowedCidrs`).

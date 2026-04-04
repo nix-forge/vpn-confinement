@@ -1,5 +1,5 @@
 _: {
-  name = "vpn-confinement-v2-dns-compatibility-mode";
+  name = "vpn-confinement-v2-dns-allow-resolver-helpers";
 
   nodes.machine =
     { pkgs, ... }:
@@ -27,7 +27,7 @@ _: {
             dns = {
               mode = "strict";
               servers = [ "10.64.0.1" ];
-              compatibilityMode = true;
+              allowResolverHelpers = true;
             };
           };
         };

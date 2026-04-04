@@ -65,9 +65,6 @@ let
     unit: if hasSuffix ".service" unit then removeSuffix ".service" unit else unit;
 
   namespacePath = nsName: "/run/netns/${nsName}";
-  runtimePath = nsName: "/run/vpn-confinement/${nsName}";
-  resolvConfPath = nsName: "${runtimePath nsName}/resolv.conf";
-  nsswitchPath = nsName: "${runtimePath nsName}/nsswitch.conf";
 
   hostLinkEnabled = _nsName: ns: ns.hostLink.enable;
 
@@ -178,8 +175,9 @@ let
         chain input {
           type filter hook input priority filter; policy drop;
           iifname "lo" accept
-          ct state established,related accept
+          ct state invalid drop
           ${optionalString (ns.ipv6.mode == "disable") "meta nfproto ipv6 drop"}
+          ct state established,related accept
           ${optionalString (withHostLink && hostIngressTcp != [ ])
             "iifname \"${ns.hostLink.nsIf}\" ip saddr ${
               effectiveHostLink.${nsName}.hostAddressIPv4
@@ -200,8 +198,9 @@ let
         chain output {
           type filter hook output priority filter; policy drop;
           oifname "lo" accept
-          ct state established,related accept
+          ct state invalid drop
           ${optionalString (ns.ipv6.mode == "disable") "meta nfproto ipv6 drop"}
+          ct state established,related accept
           ${optionalString strictDns (mkDnsOutputRules ns)}
           ${optionalString strictDns (mkDnsBlockedPortRules ns)}
           ${mkEgressRules ns}
@@ -217,12 +216,6 @@ let
     let
       withHostLink = hostLinkEnabled nsName ns;
       nftRules = pkgs.writeText "vpn-confinement-${nsName}.nft" (mkNftRules nsName ns);
-      resolvText = pkgs.writeText "vpn-confinement-${nsName}.resolv.conf" (
-        vpnLib.renderResolvConf ns.dns
-      );
-      nsswitchText = pkgs.writeText "vpn-confinement-${nsName}.nsswitch.conf" (
-        vpnLib.renderNsswitchConf ns.dns
-      );
       unitName = "vpn-confinement-netns@${nsName}";
     in
     nameValuePair unitName {
@@ -264,14 +257,6 @@ let
           ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.procps}/bin/sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
         ''}
 
-        ${pkgs.coreutils}/bin/mkdir -p ${runtimePath nsName}
-        ${pkgs.coreutils}/bin/install -m 0444 ${resolvText} ${resolvConfPath nsName}
-        ${pkgs.coreutils}/bin/install -m 0444 ${nsswitchText} ${nsswitchPath nsName}
-
-        ${pkgs.coreutils}/bin/mkdir -p /etc/netns/${nsName}
-        ${pkgs.coreutils}/bin/install -m 0444 ${resolvText} /etc/netns/${nsName}/resolv.conf
-        ${pkgs.coreutils}/bin/install -m 0444 ${nsswitchText} /etc/netns/${nsName}/nsswitch.conf
-
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft -f ${nftRules}
       '';
@@ -282,8 +267,6 @@ let
         fi
 
         ${optionalString withHostLink "${pkgs.iproute2}/bin/ip link del ${ns.hostLink.hostIf} 2>/dev/null || true"}
-        ${pkgs.coreutils}/bin/rm -rf ${runtimePath nsName}
-        ${pkgs.coreutils}/bin/rm -rf /etc/netns/${nsName}
         ${pkgs.iproute2}/bin/ip netns del ${nsName} 2>/dev/null || true
       '';
     }
@@ -294,7 +277,6 @@ let
     nameValuePair ns.wireguard.interface (
       {
         interfaceNamespace = lib.mkDefault nsName;
-        inherit (ns.wireguard) dynamicEndpointRefreshSeconds;
       }
       // lib.optionalAttrs (ns.wireguard.socketNamespace != null) {
         socketNamespace = lib.mkDefault ns.wireguard.socketNamespace;
@@ -352,12 +334,15 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.wireguard.interface must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]).";
       }
       {
-        assertion = ns.wireguard.dynamicEndpointRefreshSeconds >= 0;
-        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.dynamicEndpointRefreshSeconds must be >= 0.";
-      }
-      {
         assertion = builtins.all vpnLib.isLiteralCidr ns.egress.allowedCidrs;
         message = "services.vpnConfinement.namespaces.${nsName}.egress.allowedCidrs must contain literal IPv4/IPv6 CIDRs or IPs only.";
+      }
+      {
+        assertion =
+          ns.wireguard.socketNamespace == null
+          || ns.wireguard.socketNamespace == "init"
+          || vpnLib.isValidNamespaceName ns.wireguard.socketNamespace;
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.socketNamespace must be null, \"init\", or a valid namespace name.";
       }
       {
         assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
@@ -449,6 +434,22 @@ let
         assertion = !withHostLink || vpnLib.isLiteralIpv4Slash30 effectiveHostLink.${nsName}.subnetIPv4;
         message = "services.vpnConfinement.namespaces.${nsName}.hostLink.subnetIPv4 must be a valid IPv4 /30 network base when host link is enabled.";
       }
+      {
+        assertion = ns.ingress.fromHost.tcp == [ ] || withHostLink;
+        message = "services.vpnConfinement.namespaces.${nsName}.ingress.fromHost.tcp requires hostLink.enable = true.";
+      }
+      {
+        assertion = !withHostLink || ns.hostLink.hostIf != ns.hostLink.nsIf;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostIf and hostLink.nsIf must differ when host link is enabled.";
+      }
+      {
+        assertion = !withHostLink || ns.hostLink.hostIf != wg;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostIf must not match wireguard.interface when host link is enabled.";
+      }
+      {
+        assertion = !withHostLink || ns.hostLink.nsIf != wg;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsIf must not match wireguard.interface when host link is enabled.";
+      }
     ]
   ) enabledNamespaceNames;
 
@@ -463,7 +464,7 @@ let
         message = "systemd.services.${serviceName}.vpn.namespace references unknown namespace ${nsName}.";
       }
       {
-        assertion = cfg.namespaces.${nsName}.enable;
+        assertion = builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable;
         message = "systemd.services.${serviceName}.vpn.namespace references disabled namespace ${nsName}.";
       }
     ]
@@ -485,7 +486,7 @@ let
         message = "systemd.sockets.${socketName}.vpn.namespace references unknown namespace ${nsName}.";
       }
       {
-        assertion = cfg.namespaces.${nsName}.enable;
+        assertion = builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable;
         message = "systemd.sockets.${socketName}.vpn.namespace references disabled namespace ${nsName}.";
       }
       {
@@ -552,11 +553,6 @@ in
                   type = types.nullOr types.str;
                   default = null;
                 };
-
-                dynamicEndpointRefreshSeconds = mkOption {
-                  type = types.int;
-                  default = 0;
-                };
               };
 
               dns = {
@@ -578,7 +574,7 @@ in
                   default = [ ];
                 };
 
-                compatibilityMode = mkOption {
+                allowResolverHelpers = mkOption {
                   type = types.bool;
                   default = false;
                 };

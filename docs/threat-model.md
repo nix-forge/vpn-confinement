@@ -28,7 +28,8 @@
 - Resolver and nsswitch bind mounts in strict mode, with inaccessible host
   resolver helper paths.
 - Strict DNS default blocks common host resolver helpers (`/run/nscd` and system
-  D-Bus sockets); `dns.compatibilityMode = true` is the compatibility opt-out.
+  D-Bus sockets); `dns.allowResolverHelpers = true` is the compatibility
+  opt-out.
 - WireGuard peer endpoints may be hostnames when periodic endpoint refresh is
   enabled.
 
@@ -46,7 +47,7 @@ destination CIDRs.
   namespace policy.
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.
 - Applications that query host resolver APIs directly over D-Bus are not fully
-  covered when `dns.compatibilityMode = true`.
+  covered when `dns.allowResolverHelpers = true`.
 - DoH/DoQ over generic egress is outside strict DNS guarantees unless
   destination allowlisting is configured.
 - `hostLink` is a convenience mode and expands attack surface relative to a pure

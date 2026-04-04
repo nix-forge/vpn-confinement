@@ -63,7 +63,7 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-dns-system-bus-block.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-dns-compatibility-mode = pkgs.testers.runNixOSTest (
+      checks.vpn-confinement-v2-dns-allow-resolver-helpers = pkgs.testers.runNixOSTest (
         import ../../tests/nixos/vpn-confinement-v2-dns-compatibility-mode.nix { inherit pkgs; }
       );
 
@@ -71,9 +71,7 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-host-socket-vpn-service-pattern.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-hostlink-disabled-no-ingress = pkgs.testers.runNixOSTest (
-        import ../../tests/nixos/vpn-confinement-v2-hostlink-disabled-no-ingress.nix { inherit pkgs; }
-      );
+      checks.vpn-confinement-v2-hostlink-disabled-no-ingress = mkEvalRejectCheck "vpn-confinement-v2-hostlink-disabled-no-ingress" ../../tests/nixos/vpn-confinement-v2-hostlink-disabled-no-ingress.nix;
 
       checks.vpn-confinement-v2-egress-ipv6-cidr-reject = mkEvalRejectCheck "vpn-confinement-v2-egress-ipv6-cidr-reject" ../../tests/nixos/vpn-confinement-v2-egress-ipv6-cidr-reject.nix;
 
@@ -93,9 +91,13 @@ _: {
 
       checks.vpn-confinement-v2-hostlink-subnet-collision-reject = mkEvalRejectCheck "vpn-confinement-v2-hostlink-subnet-collision-reject" ../../tests/nixos/vpn-confinement-v2-hostlink-subnet-collision-reject.nix;
 
+      checks.vpn-confinement-v2-hostlink-interface-conflict-reject = mkEvalRejectCheck "vpn-confinement-v2-hostlink-interface-conflict-reject" ../../tests/nixos/vpn-confinement-v2-hostlink-interface-conflict-reject.nix;
+
       checks.vpn-confinement-v2-wireguard-namespace-ownership-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-namespace-ownership-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-namespace-ownership-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-socket-namespace-ownership-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-socket-namespace-ownership-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-socket-namespace-ownership-reject.nix;
+
+      checks.vpn-confinement-v2-wireguard-socket-namespace-name-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-socket-namespace-name-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-socket-namespace-name-reject.nix;
 
       checks.vpn-confinement-v2-api-removal-reject = mkEvalRejectCheck "vpn-confinement-v2-api-removal-reject" ../../tests/nixos/vpn-confinement-v2-api-removal-reject.nix;
 

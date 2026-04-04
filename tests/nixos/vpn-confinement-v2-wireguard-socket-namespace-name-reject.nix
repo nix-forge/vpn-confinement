@@ -1,19 +1,20 @@
 _: {
-  name = "vpn-confinement-v2-hostlink-disabled-no-ingress";
+  name = "vpn-confinement-v2-wireguard-socket-namespace-name-reject";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-hostlink-off";
+    networking.hostName = "vpnc-v2-wg-socket-namespace-name-reject";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
       namespaces.vpnapps = {
         enable = true;
-        wireguard.interface = "wg0";
-        hostLink.enable = false;
-        ingress.fromHost.tcp = [ 8080 ];
+        wireguard = {
+          interface = "wg0";
+          socketNamespace = "bad/name";
+        };
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];

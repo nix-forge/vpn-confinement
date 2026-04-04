@@ -12,16 +12,12 @@ services.
 - Confinement uses a dedicated Linux network namespace at `/run/netns/<name>`.
 - WireGuard is configured via `networking.wireguard.interfaces.<if>` and
   assigned with `interfaceNamespace`.
-- The module can also set WireGuard `socketNamespace` and
-  `dynamicEndpointRefreshSeconds` per confinement namespace.
+- The module can also set WireGuard `socketNamespace` per confinement namespace.
 - `wireguard-<if>.service` explicitly requires and orders after the namespace
   preparation unit.
 - Namespace-local nftables enforces deny-by-default egress and allows only
   tunnel traffic according to namespace egress mode.
-- A namespace-specific `resolv.conf` is bind-mounted into confined units.
-- Namespace resolver files are also written to `/etc/netns/<name>/resolv.conf`
-  and `/etc/netns/<name>/nsswitch.conf` for namespace-unaware tooling run via
-  `ip netns exec`.
+- Store-generated resolver files are bind-mounted directly into confined units.
 - DNS policy is namespace-scoped and controlled by
   `services.vpnConfinement.namespaces.<name>.dns.mode`.
 - In `dns.mode = "strict"`, DNS policy blocks non-allowlisted DNS-like traffic
@@ -29,9 +25,9 @@ services.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
-- `dns.compatibilityMode = false` (default) blocks common host resolver helpers
-  (`/run/nscd` and system D-Bus sockets) in strict mode; compatibility mode opts
-  out of those helper blocks.
+- `dns.allowResolverHelpers = false` (default) blocks common host resolver
+  helpers (`/run/nscd` and system D-Bus sockets) in strict mode; setting it to
+  `true` opts out of those helper blocks.
 - Egress policy is explicit:
   - `egress.mode = "allowAllTunnel"`: allow all tunnel egress (after DNS
     policy).
@@ -53,10 +49,10 @@ services.
 - DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
   ports.
 - WireGuard peer endpoints may be literal IPs or hostnames. Hostname endpoints
-  require endpoint refresh (`dynamicEndpointRefreshSeconds > 0`) so DNS changes
-  are re-resolved.
+  require upstream WireGuard endpoint refresh
+  (`dynamicEndpointRefreshSeconds > 0`) so DNS changes are re-resolved.
 - Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
-  `dns.compatibilityMode = false` (or equivalent unit-local restrictions).
+  `dns.allowResolverHelpers = false` (or equivalent unit-local restrictions).
 
 ## Socket activation pattern
 

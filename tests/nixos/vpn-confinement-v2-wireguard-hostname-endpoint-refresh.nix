@@ -16,7 +16,6 @@ _: {
           wireguard = {
             interface = "wg0";
             socketNamespace = "init";
-            dynamicEndpointRefreshSeconds = 300;
           };
           dns = {
             mode = "strict";
@@ -28,6 +27,7 @@ _: {
       networking.wireguard.interfaces.wg0 = {
         privateKeyFile = "/run/wg-test/private.key";
         ips = [ "10.71.216.231/32" ];
+        dynamicEndpointRefreshSeconds = 300;
         peers = [
           {
             publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
@@ -65,6 +65,5 @@ _: {
     machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
     machine.wait_for_unit("wireguard-wg0.service")
     machine.succeed("systemctl show -p Result --value netns-echo.service | grep -q '^success$'")
-    machine.succeed("systemctl list-unit-files | grep -Eq '^wireguard-wg0-peer-.*refresh\\.service'")
   '';
 }

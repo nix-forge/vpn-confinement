@@ -79,6 +79,7 @@ _: {
     machine.succeed("systemctl show -p NetworkNamespacePath --value socket-echo.socket | grep -q '^/run/netns/vpnapps$'")
     machine.succeed("systemctl show -p NetworkNamespacePath --value socket-echo.service | grep -q '^/run/netns/vpnapps$'")
     machine.succeed("systemctl show -p BindsTo --value socket-echo.socket | grep -q 'vpn-confinement-netns@vpnapps.service'")
+    machine.succeed("systemctl show -p BindsTo --value socket-echo.socket | grep -q 'wireguard-wg0.service'")
     machine.succeed("systemctl show -p BindsTo --value socket-echo.service | grep -q 'wireguard-wg0.service'")
 
     machine.succeed("systemctl start socket-echo.socket")

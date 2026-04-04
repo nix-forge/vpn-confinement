@@ -7,11 +7,10 @@
 - `services.vpnConfinement.namespaces.<name>.enable`
 - `services.vpnConfinement.namespaces.<name>.wireguard.interface`
 - `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
-- `services.vpnConfinement.namespaces.<name>.wireguard.dynamicEndpointRefreshSeconds`
 - `services.vpnConfinement.namespaces.<name>.dns.mode`
 - `services.vpnConfinement.namespaces.<name>.dns.servers`
 - `services.vpnConfinement.namespaces.<name>.dns.search`
-- `services.vpnConfinement.namespaces.<name>.dns.compatibilityMode`
+- `services.vpnConfinement.namespaces.<name>.dns.allowResolverHelpers`
 - `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 - `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 - `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
@@ -42,12 +41,16 @@
 - `services.vpnConfinement.targetServices` was removed in v2.
 - DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
 - `dns.mode` values are `strict` or `relaxed`.
-- `dns.compatibilityMode = false` (default) blocks system D-Bus and `/run/nscd`
-  helper paths in strict mode.
-- `dns.compatibilityMode = true` relaxes helper-path blocking for compatibility.
+- `dns.allowResolverHelpers = false` (default) blocks system D-Bus and
+  `/run/nscd` helper paths in strict mode.
+- `dns.allowResolverHelpers = true` relaxes helper-path blocking for
+  compatibility.
 - `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
 - `egress.mode = "allowList"` allows only configured `allowed*` rules.
 - `hostLink.subnetIPv4` must be an IPv4 `/30` network base when set.
+- `ingress.fromHost.tcp` requires `hostLink.enable = true`.
+- `hostLink.hostIf` and `hostLink.nsIf` must be distinct and must not reuse the
+  WireGuard interface name.
 - If `hostLink.enable = true` and `hostLink.subnetIPv4 = null`, a deterministic
   namespace-name-hash `/30` is auto-allocated from `169.254.0.0/16`.
 - VPN-enabled services running as root emit a warning unless
@@ -57,7 +60,8 @@
 - Socket units can be vpn-enabled and should match namespace policy with their
   target service.
 - WireGuard peer endpoints can be literal IPs or hostnames. Hostname endpoints
-  require endpoint refresh (`dynamicEndpointRefreshSeconds > 0`).
+  require upstream WireGuard endpoint refresh
+  (`dynamicEndpointRefreshSeconds > 0`).
 
 ## Notes on removed options
 
