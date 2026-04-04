@@ -12,6 +12,7 @@
       enable = true;
       namespaces.vpnapps = {
         enable = true;
+        wireguard.allowHostnameEndpoints = true;
         wireguard.interface = "wg0";
         dns = {
           mode = "strict";

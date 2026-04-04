@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-v2-restrict-bind-deny-any";
+  name = "vpn-confinement-v2-restrict-bind-no-ingress-noop";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-restrict-bind-deny";
+    networking.hostName = "vpnc-v2-restrict-bind-noop";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -61,7 +61,10 @@
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("wireguard-wg0.service")
-    machine.succeed("systemctl show -p SocketBindDeny --value bind-denied.service | grep -q '^any$'")
-    machine.fail("systemctl start bind-denied.service")
+    machine.succeed("systemctl show -p SocketBindAllow --value bind-denied.service | grep -q '^$'")
+    machine.succeed("systemctl show -p SocketBindDeny --value bind-denied.service | grep -q '^$'")
+    machine.succeed("systemctl start bind-denied.service")
+    machine.wait_for_unit("bind-denied.service")
+    machine.succeed("systemctl stop bind-denied.service")
   '';
 }

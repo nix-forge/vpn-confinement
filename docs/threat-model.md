@@ -10,6 +10,8 @@
   advanced socket namespace override is used.
 - Service-level hardening can reduce damage from a compromised confined service,
   but the network boundary is the namespace plus nftables policy.
+- `securityProfile = "highAssurance"` is the opinionated profile for users who
+  want weaker compatibility paths rejected instead of merely warned about.
 
 ## Intended guarantees
 
@@ -37,7 +39,8 @@
 - `RestrictNetworkInterfaces=` to keep confined services on `lo`, the WireGuard
   interface, and optional host-link interface only.
 - Optional `vpn.restrictBind = true` to derive `SocketBindAllow` /
-  `SocketBindDeny` from namespace ingress policy.
+  `SocketBindDeny` from namespace ingress policy when ingress listeners are
+  declared.
 
 ## Weaker modes and opt-outs
 
@@ -47,6 +50,8 @@
   host resolver helper IPC such as `/run/nscd` and system D-Bus.
 - `hostLink.enable = true` expands the namespace attack surface by adding a host
   communication path.
+- `securityProfile = "highAssurance"` rejects `dns.allowHostResolverIPC = true`,
+  `wireguard.allowHostnameEndpoints = true`, and `allowedIPsAsRoutes = false`.
 - `wireguard.socketNamespace` is advanced; `"init"` is the main supported
   override. Setting it to the same confinement namespace is rejected because the
   WireGuard UDP socket needs an uplink-capable birthplace namespace.
@@ -54,8 +59,9 @@
 ## Endpoint policy
 
 - Literal WireGuard peer endpoints are the recommended default.
-- Hostname endpoints are allowed only when effective dynamic endpoint refresh is
-  enabled at the interface or peer level.
+- Hostname endpoints require explicit opt-in with
+  `wireguard.allowHostnameEndpoints = true` and effective dynamic endpoint
+  refresh at the interface or peer level.
 - Even with refresh enabled, hostname endpoints are weaker than literal IPs:
   resolution is performed by WireGuard management units, not the confined
   service, so it is outside the module's strict DNS guarantee.
@@ -90,6 +96,9 @@
   as a blanket claim that all DNS exfiltration paths are eliminated.
 - Service bind restrictions are supplemental hardening only; nftables remains
   the primary enforcement layer.
+- vpn-enabled services and sockets must not override namespace attachment with
+  manual `NetworkNamespacePath`, `PrivateNetwork`, or `JoinsNamespaceOf`
+  settings.
 - Socket and service units should share the same namespace policy when both are
   vpn-enabled.
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.

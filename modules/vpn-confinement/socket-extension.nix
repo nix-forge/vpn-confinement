@@ -3,6 +3,7 @@ let
   inherit (lib)
     attrByPath
     mkEnableOption
+    mkDefault
     mkIf
     mkMerge
     mkOption
@@ -38,7 +39,7 @@ in
               after = [ "vpn-confinement-netns@${nsName}.service" ];
               requires = [ "vpn-confinement-netns@${nsName}.service" ];
               bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
-              socketConfig.NetworkNamespacePath = "/run/netns/${nsName}";
+              socketConfig.NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
             }
             (mkIf nsExists {
               after = [ "wireguard-${wgIf}.service" ];

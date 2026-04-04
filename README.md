@@ -1,5 +1,7 @@
 # vpn-confinement
 
+[![CI](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml)
+
 NixOS module for confining selected systemd services to a WireGuard-routed
 network namespace.
 
@@ -8,6 +10,53 @@ network namespace.
 `vpn-confinement` uses a dedicated network namespace per trust domain. This
 matches WireGuard's namespace model and gives a stronger fail-closed boundary
 than policy-routing-only setups for the "only these services use VPN" case.
+
+## Guarantees
+
+- Selected services run inside a dedicated namespace instead of sharing host
+  routing state.
+- Namespace-local nftables remains the primary fail-closed enforcement layer.
+- Strict DNS pins common resolver behavior to namespace-local generated files
+  and blocks classic DNS leak ports.
+- IPv6 is fail closed by default unless intentionally tunneled.
+- Tunnel or namespace teardown propagates to confined units with `BindsTo=`.
+
+## Non-goals
+
+- Preventing every possible HTTPS-based DoH or DoQ flow without destination
+  allowlisting.
+- Isolating mutually untrusted services from each other inside the same
+  namespace.
+- Replacing nftables with policy routing or cgroup-owner packet matching as the
+  main policy surface.
+
+## Why not policy routing
+
+- The trust boundary here is the namespace, not host-global route rules.
+- WireGuard keeps its UDP socket in the namespace where that socket was born,
+  while the interface itself can live in the confined namespace. This fits the
+  namespace model cleanly.
+- Non-confined host traffic stays on the normal network without extra owner or
+  fwmark policy.
+
+## Diagram
+
+```text
+host namespace
+  |
+  |  WireGuard UDP socket birthplace
+  v
+[ wireguard-wg0.service ]
+  |
+  | moves wg0 into /run/netns/vpnapps
+  v
+/run/netns/vpnapps
+  |- confined services
+  |- lo
+  |- wg0 -> allowed tunnel egress
+  |- nftables default-drop policy
+  `- blocked leak paths: host uplinks, classic DNS ports, optional host IPC
+```
 
 ## Features
 
@@ -36,6 +85,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
     defaultNamespace = "vpnapps";
     namespaces.vpnapps = {
       enable = true;
+      securityProfile = "balanced";
       wireguard.interface = "wg0";
       dns = {
         mode = "strict";
@@ -78,6 +128,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
 
     namespaces.vpnapps = {
       enable = true;
+      securityProfile = "highAssurance";
       wireguard.interface = "wg0";
 
       dns = {
@@ -117,10 +168,13 @@ than policy-routing-only setups for the "only these services use VPN" case.
   - `enable`, `namespace`
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
+  - `securityProfile = "balanced" | "highAssurance"`
   - `wireguard.interface`
+  - `wireguard.allowHostnameEndpoints = false` by default
   - `wireguard.socketNamespace = null | "init" | <name>` for advanced usage
   - `dns.mode = "strict" | "compat"`
   - `dns.allowHostResolverIPC = false` by default
+  - `dns.search` must contain validated domain-style suffixes only
   - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `hostLink.subnetIPv4 = null | "x.x.x.x/30"` (`null` auto-allocates from
@@ -130,7 +184,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
   - `egress.allowedTcpPorts`, `egress.allowedUdpPorts`, `egress.allowedCidrs`
 - Per-service hardening also includes optional
   `systemd.services.<name>.vpn.restrictBind = true` to deny undeclared
-  service-created listeners.
+  service-created listeners when namespace ingress ports are declared.
 - A service is confined when `systemd.services.<name>.vpn.enable = true`; no
   global service target list exists.
 - DNS and firewall policy are namespace-wide. If two services need different
@@ -150,20 +204,30 @@ than policy-routing-only setups for the "only these services use VPN" case.
   host/init-namespace socket behavior unless you have a specific routing need.
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
-- Literal WireGuard peer endpoints remain the recommended default. Hostname
-  endpoints are allowed only when effective dynamic refresh is enabled
-  (`dynamicEndpointRefreshSeconds > 0` at the interface or peer level), and the
-  module warns because this path is weaker than literal IPs.
+- Literal WireGuard peer endpoints are the default and recommended path.
+- Hostname endpoints require explicit opt-in with
+  `wireguard.allowHostnameEndpoints = true` and still require effective dynamic
+  refresh (`dynamicEndpointRefreshSeconds > 0` at the interface or peer level).
+- Hostname endpoint refresh remains weaker than literal IPs because it is done
+  by WireGuard management units rather than the confined service.
 - `networking.wireguard.interfaces.<if>.allowedIPsAsRoutes = false` is treated
-  as advanced and emits a warning because confinement expects peer `allowedIPs`
-  routes to exist inside the namespace.
+  as advanced and emits a warning in `balanced`; `highAssurance` rejects it.
 - `networking.wireguard.interfaces.<if>.fwMark` remains an upstream WireGuard
   escape hatch for policy-routing-heavy setups; the confinement model does not
   depend on it.
 - `networking.wireguard.interfaces.<if>.mtu` remains an upstream performance
   tuning knob; this module does not add extra MTU logic.
 
-## Strict vs high assurance
+## Profiles
+
+- `securityProfile = "balanced"` keeps the default namespace model opinionated
+  but leaves advanced compatibility paths available.
+- `securityProfile = "highAssurance"` defaults `egress.mode = "allowList"` and
+  turns weaker compatibility paths into assertions.
+- `highAssurance` requires literal peer endpoint IPs, rejects
+  `dns.allowHostResolverIPC = true`, and rejects `allowedIPsAsRoutes = false`.
+
+## DNS modes
 
 - `dns.mode = "strict"` means common resolver leak resistance: namespace
   resolver bind mounts, helper-path blocking, and DNS-like leak-port blocking.
@@ -171,12 +235,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
   for compatibility with software that needs custom resolver flows.
 - `dns.allowHostResolverIPC = true` is the expert escape hatch for strict mode
   workloads that still need host resolver helpers like nscd or system D-Bus.
-- `high assurance` means `dns.mode = "strict"` plus `egress.mode = "allowList"`
-  with tightly constrained `allowedCidrs`.
 - If an application intentionally bypasses system resolver behavior, destination
   allowlisting is the control that matters.
 - `vpn.restrictBind = true` is optional defense in depth for services that
-  should only listen on namespace-declared ingress ports.
+  should only listen on namespace-declared ingress ports. It is not the primary
+  leak-prevention mechanism.
 
 ## Threat model matrix
 
@@ -228,9 +291,10 @@ See `docs/threat-model.md` for the full write-up. The short version is:
 - The UDP socket birthplace is controlled by `socketNamespace`; leaving it unset
   keeps the standard host/init namespace behavior.
 - Literal peer endpoints are strongest.
-- Hostname endpoints are accepted only with periodic refresh enabled, and they
-  sit outside the strict DNS guarantee because the refresh is done by the
-  WireGuard management units rather than the confined service.
+- Hostname endpoints are accepted only when
+  `wireguard.allowHostnameEndpoints = true` and periodic refresh is enabled.
+- Even then, they sit outside the strict DNS guarantee because the refresh is
+  done by the WireGuard management units rather than the confined service.
 
 ## Compatibility baseline
 
@@ -238,6 +302,15 @@ See `docs/threat-model.md` for the full write-up. The short version is:
 - This baseline assumes modern systemd support for namespace controls used by
   this module (notably `NetworkNamespacePath=` and
   `RestrictNetworkInterfaces=`).
+- `vpn.restrictBind` is documented as defense in depth only. This module does
+  not rely on bare `SocketBindDeny=any` as a security guarantee.
+
+## Secrets
+
+- Prefer `sops-nix` or `agenix` for WireGuard private keys.
+- Avoid passing long-lived secrets through environment variables.
+- Prefer systemd credentials for service secrets that need to be mounted into a
+  confined unit.
 
 ## Troubleshooting
 
@@ -259,6 +332,7 @@ See `docs/threat-model.md` for the full write-up. The short version is:
 
 - Format: `nix fmt`
 - Validation: `nix flake check`
+- CI runs `nix flake check` on pushes and pull requests.
 
 ## License
 

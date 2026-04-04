@@ -114,7 +114,7 @@ in
             restrictBind = mkOption {
               type = types.bool;
               default = false;
-              description = "Restrict service-created listeners to namespace ingress ports as defense in depth.";
+              description = "Restrict service-created listeners to declared namespace ingress ports as defense in depth.";
             };
           };
 
@@ -124,7 +124,7 @@ in
               requires = [ "vpn-confinement-netns@${nsName}.service" ];
               bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
               serviceConfig = hardeningBaseline // {
-                NetworkNamespacePath = "/run/netns/${nsName}";
+                NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
                 RestrictNetworkInterfaces = mkDefault (
                   [
@@ -162,15 +162,11 @@ in
                 };
               }
             ))
-            (mkIf (nsExists && config.vpn.restrictBind) {
-              serviceConfig =
-                if bindAllowRules == [ ] then
-                  { SocketBindDeny = [ "any" ]; }
-                else
-                  {
-                    SocketBindAllow = bindAllowRules;
-                    SocketBindDeny = [ "any" ];
-                  };
+            (mkIf (nsExists && config.vpn.restrictBind && bindAllowRules != [ ]) {
+              serviceConfig = {
+                SocketBindAllow = bindAllowRules;
+                SocketBindDeny = [ "any" ];
+              };
             })
             (mkIf (config.vpn.hardeningProfile == "strict") {
               serviceConfig = hardeningStrict // {

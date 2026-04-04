@@ -7,6 +7,7 @@ let
     hasInfix
     length
     optionalString
+    removeSuffix
     splitString
     unique
     ;
@@ -256,6 +257,11 @@ let
 
   hostnameLabelMatch = label: builtins.match "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$" label;
 
+  stripOptionalTrailingDot =
+    value: if builtins.match ".*[.]$" value != null then removeSuffix "." value else value;
+
+  hasWhitespace = value: builtins.match ".*[[:space:]].*" value != null;
+
   isHostname =
     value:
     let
@@ -280,6 +286,19 @@ let
     && isValidPort port
     && !isLiteralIpv4 host
     && !isLiteralIpv6 host;
+
+  isSearchDomain =
+    value:
+    let
+      normalized = stripOptionalTrailingDot value;
+      labels = splitString "." normalized;
+    in
+    builtins.stringLength value >= 1
+    && builtins.stringLength value <= 254
+    && !hasWhitespace value
+    && normalized != ""
+    && labels != [ ]
+    && all (label: label != "" && hostnameLabelMatch label != null) labels;
 
   isSupportedEndpoint =
     value: isLiteralIpv4Endpoint value || isLiteralIpv6Endpoint value || isHostnameEndpoint value;
@@ -404,6 +423,8 @@ in
   inherit isValidInterfaceName;
 
   inherit isValidNamespaceName;
+
+  inherit isSearchDomain;
 
   splitIpv4 = ip: splitString "." ip;
 }

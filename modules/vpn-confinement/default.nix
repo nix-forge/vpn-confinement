@@ -13,6 +13,7 @@ let
     hasSuffix
     mapAttrs'
     mapAttrsToList
+    mkDefault
     mkEnableOption
     mkIf
     mkMerge
@@ -272,6 +273,22 @@ let
       script = ''
         set -eu
 
+        namespace_exists() {
+          [ -e ${namespacePath nsName} ]
+        }
+
+        cleanup_failed_start() {
+          if namespace_exists; then
+            ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
+          fi
+
+          ${optionalString withHostLink "${pkgs.iproute2}/bin/ip link del ${ns.hostLink.hostIf} 2>/dev/null || true"}
+          ${pkgs.iproute2}/bin/ip netns del ${nsName} 2>/dev/null || true
+        }
+
+        success=0
+        trap 'if [ "$success" -ne 1 ]; then cleanup_failed_start; fi' EXIT INT TERM
+
         ${pkgs.coreutils}/bin/mkdir -p /run/netns
         if [ ! -e ${namespacePath nsName} ]; then
           ${pkgs.iproute2}/bin/ip netns add ${nsName}
@@ -300,8 +317,11 @@ let
           ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.procps}/bin/sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
         ''}
 
+        ${pkgs.nftables}/bin/nft -c -f ${nftRules}
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft -f ${nftRules}
+
+        success=1
       '';
       postStop = ''
         set -eu
@@ -362,6 +382,8 @@ let
   wireguardHasHostnameEndpoints =
     wgConfig: builtins.any wireguardPeerHasHostnameEndpoint (wgConfig.peers or [ ]);
 
+  joinsNamespaceUnset = value: value == null || value == "" || value == [ ];
+
   activeHostLinks = lib.filter (
     nsName:
     let
@@ -382,6 +404,7 @@ let
       dnsSplit = vpnLib.splitDns ns.dns.servers;
       cidrSplit = vpnLib.splitCidrs ns.egress.allowedCidrs;
       withHostLink = hostLinkEnabled nsName ns;
+      highAssurance = ns.securityProfile == "highAssurance";
     in
     [
       {
@@ -395,6 +418,10 @@ let
       {
         assertion = !(ns.ipv6.mode == "disable" && dnsSplit.ipv6 != [ ]);
         message = "services.vpnConfinement.namespaces.${nsName}.dns.servers cannot include IPv6 when ipv6.mode = \"disable\".";
+      }
+      {
+        assertion = all vpnLib.isSearchDomain ns.dns.search;
+        message = "services.vpnConfinement.namespaces.${nsName}.dns.search must contain domain-style search suffixes only (valid labels, no empty labels, no whitespace).";
       }
       {
         assertion = vpnLib.isValidInterfaceName wg;
@@ -414,6 +441,22 @@ let
       {
         assertion = ns.wireguard.socketNamespace != nsName;
         message = "services.vpnConfinement.namespaces.${nsName}.wireguard.socketNamespace must not match the confinement namespace name; use null or \"init\" unless you intentionally need a different birthplace namespace for the WireGuard UDP socket.";
+      }
+      {
+        assertion = !highAssurance || ns.dns.mode == "strict";
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" requires dns.mode = \"strict\".";
+      }
+      {
+        assertion = !highAssurance || !ns.dns.allowHostResolverIPC;
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects dns.allowHostResolverIPC = true because host resolver IPC weakens DNS containment.";
+      }
+      {
+        assertion = !highAssurance || ns.egress.mode == "allowList";
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" requires egress.mode = \"allowList\".";
+      }
+      {
+        assertion = !highAssurance || !ns.wireguard.allowHostnameEndpoints;
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects wireguard.allowHostnameEndpoints = true; use literal peer endpoint IPs instead.";
       }
       {
         assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
@@ -461,10 +504,32 @@ let
           || (
             let
               wgConfig = config.networking.wireguard.interfaces.${wg};
+              endpoints = builtins.filter (endpoint: endpoint != null) (
+                map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
+              );
+            in
+            ns.wireguard.allowHostnameEndpoints || all vpnLib.isLiteralEndpoint endpoints
+          );
+        message = "services.vpnConfinement.namespaces.${nsName} defaults to literal WireGuard peer endpoint IPs. Set wireguard.allowHostnameEndpoints = true to opt into hostname:port endpoints.";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || !ns.wireguard.allowHostnameEndpoints
+          || (
+            let
+              wgConfig = config.networking.wireguard.interfaces.${wg};
             in
             wireguardHostnameEndpointsHaveRefresh wgConfig
           );
         message = "services.vpnConfinement.namespaces.${nsName} allows hostname WireGuard endpoints only when effective dynamic endpoint refresh is enabled on networking.wireguard.interfaces.${wg} (interface-level or per-peer dynamicEndpointRefreshSeconds > 0).";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || !highAssurance
+          || (config.networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes or true);
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" requires networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = true so peer routes remain installed inside the namespace.";
       }
       {
         assertion =
@@ -515,6 +580,7 @@ let
     serviceName:
     let
       nsName = nsFor serviceName;
+      service = config.systemd.services.${serviceName};
     in
     [
       {
@@ -525,6 +591,18 @@ let
         assertion = builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable;
         message = "systemd.services.${serviceName}.vpn.namespace references disabled namespace ${nsName}.";
       }
+      {
+        assertion = (service.serviceConfig.NetworkNamespacePath or null) == namespacePath nsName;
+        message = "vpn-confinement owns systemd.services.${serviceName}.serviceConfig.NetworkNamespacePath; leave it unset or set it to ${namespacePath nsName}.";
+      }
+      {
+        assertion = !(service.serviceConfig.PrivateNetwork or false);
+        message = "systemd.services.${serviceName}.serviceConfig.PrivateNetwork conflicts with vpn-confinement namespace management; leave it unset.";
+      }
+      {
+        assertion = joinsNamespaceUnset (service.unitConfig.JoinsNamespaceOf or null);
+        message = "systemd.services.${serviceName}.unitConfig.JoinsNamespaceOf conflicts with vpn-confinement namespace attachment; leave it unset.";
+      }
     ]
   ) vpnEnabledServiceNames;
 
@@ -532,6 +610,7 @@ let
     socketName:
     let
       nsName = nsForSocket socketName;
+      socket = config.systemd.sockets.${socketName};
       targetUnit = socketTargetUnit socketName;
       targetService = serviceNameFromUnit targetUnit;
       targetExists = builtins.hasAttr targetService config.systemd.services;
@@ -563,6 +642,14 @@ let
         assertion = !targetVpnEnabled || nsFor targetService == nsName;
         message = "systemd.sockets.${socketName}.vpn.namespace (${nsName}) must match systemd.services.${targetService}.vpn.namespace for ${socketUnit}.";
       }
+      {
+        assertion = (socket.socketConfig.NetworkNamespacePath or null) == namespacePath nsName;
+        message = "vpn-confinement owns systemd.sockets.${socketName}.socketConfig.NetworkNamespacePath; leave it unset or set it to ${namespacePath nsName}.";
+      }
+      {
+        assertion = joinsNamespaceUnset (socket.unitConfig.JoinsNamespaceOf or null);
+        message = "systemd.sockets.${socketName}.unitConfig.JoinsNamespaceOf conflicts with vpn-confinement namespace attachment; leave it unset.";
+      }
     ]
   ) vpnEnabledSocketNames;
 
@@ -587,12 +674,17 @@ let
       wgExists = builtins.hasAttr wg config.networking.wireguard.interfaces;
       wgConfig = if wgExists then config.networking.wireguard.interfaces.${wg} else null;
     in
-    lib.optionals (wgExists && wireguardHasHostnameEndpoints wgConfig) [
-      "services.vpnConfinement.namespaces.${nsName} uses hostname WireGuard peer endpoints on ${wg}. This is allowed only with endpoint refresh enabled and is weaker than literal IP endpoints because hostname resolution is performed by the WireGuard management unit, outside the module's strict DNS guarantee."
-    ]
-    ++ lib.optionals (wgExists && !(wgConfig.allowedIPsAsRoutes or true)) [
-      "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
-    ]
+    lib.optionals
+      (wgExists && ns.wireguard.allowHostnameEndpoints && wireguardHasHostnameEndpoints wgConfig)
+      [
+        "services.vpnConfinement.namespaces.${nsName} uses hostname WireGuard peer endpoints on ${wg}. This is allowed only with endpoint refresh enabled and is weaker than literal IP endpoints because hostname resolution is performed by the WireGuard management unit, outside the module's strict DNS guarantee."
+      ]
+    ++
+      lib.optionals
+        (wgExists && ns.securityProfile != "highAssurance" && !(wgConfig.allowedIPsAsRoutes or true))
+        [
+          "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
+        ]
   ) enabledNamespaceNames;
 in
 {
@@ -612,10 +704,22 @@ in
     namespaces = mkOption {
       type = types.attrsOf (
         types.submodule (
-          { name, ... }:
+          { name, config, ... }:
           {
             options = {
               enable = mkEnableOption "VPN confinement namespace";
+
+              securityProfile = mkOption {
+                type = types.enum [
+                  "balanced"
+                  "highAssurance"
+                ];
+                default = "balanced";
+                description = ''
+                  Opinionated namespace security preset. "highAssurance" turns
+                  weaker compatibility paths into explicit evaluation failures.
+                '';
+              };
 
               wireguard = {
                 interface = mkOption {
@@ -630,6 +734,16 @@ in
                     Advanced WireGuard UDP socket birthplace namespace. Leave this
                     unset for the default path, or use "init" when the socket must
                     stay in the host namespace.
+                  '';
+                };
+
+                allowHostnameEndpoints = mkOption {
+                  type = types.bool;
+                  default = false;
+                  description = ''
+                    Advanced compatibility opt-in for hostname:port WireGuard
+                    peer endpoints. Literal IP endpoints remain the secure
+                    default.
                   '';
                 };
               };
@@ -738,6 +852,14 @@ in
                   default = null;
                 };
               };
+            };
+
+            config = mkIf (config.securityProfile == "highAssurance") {
+              dns.mode = mkDefault "strict";
+              dns.allowHostResolverIPC = mkDefault false;
+              egress.mode = mkDefault "allowList";
+              ipv6.mode = mkDefault "disable";
+              wireguard.allowHostnameEndpoints = mkDefault false;
             };
           }
         )

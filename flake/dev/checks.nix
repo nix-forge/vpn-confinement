@@ -95,6 +95,8 @@ _: {
 
       checks.vpn-confinement-v2-wireguard-endpoint-ipv6-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-ipv6-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-ipv6-reject.nix;
 
+      checks.vpn-confinement-v2-dns-search-validation-reject = mkEvalRejectCheck "vpn-confinement-v2-dns-search-validation-reject" ../../tests/nixos/vpn-confinement-v2-dns-search-validation-reject.nix;
+
       checks.vpn-confinement-v2-namespace-name-validation-reject = mkEvalRejectCheck "vpn-confinement-v2-namespace-name-validation-reject" ../../tests/nixos/vpn-confinement-v2-namespace-name-validation-reject.nix;
 
       checks.vpn-confinement-v2-ipv6-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-ipv6-literal-reject" ../../tests/nixos/vpn-confinement-v2-ipv6-literal-reject.nix;
@@ -114,6 +116,16 @@ _: {
       checks.vpn-confinement-v2-wireguard-socket-namespace-ownership-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-socket-namespace-ownership-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-socket-namespace-ownership-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-socket-namespace-name-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-socket-namespace-name-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-socket-namespace-name-reject.nix;
+
+      checks.vpn-confinement-v2-service-manual-namespace-reject = mkEvalRejectCheck "vpn-confinement-v2-service-manual-namespace-reject" ../../tests/nixos/vpn-confinement-v2-service-manual-namespace-reject.nix;
+
+      checks.vpn-confinement-v2-socket-manual-namespace-reject = mkEvalRejectCheck "vpn-confinement-v2-socket-manual-namespace-reject" ../../tests/nixos/vpn-confinement-v2-socket-manual-namespace-reject.nix;
+
+      checks.vpn-confinement-v2-high-assurance-route-reject = mkEvalRejectCheck "vpn-confinement-v2-high-assurance-route-reject" ../../tests/nixos/vpn-confinement-v2-high-assurance-route-reject.nix;
+
+      checks.vpn-confinement-v2-high-assurance-hostname-optin-reject = mkEvalRejectCheck "vpn-confinement-v2-high-assurance-hostname-optin-reject" ../../tests/nixos/vpn-confinement-v2-high-assurance-hostname-optin-reject.nix;
+
+      checks.vpn-confinement-v2-high-assurance-resolver-ipc-reject = mkEvalRejectCheck "vpn-confinement-v2-high-assurance-resolver-ipc-reject" ../../tests/nixos/vpn-confinement-v2-high-assurance-resolver-ipc-reject.nix;
 
       checks.vpn-confinement-v2-api-removal-reject = mkEvalRejectCheck "vpn-confinement-v2-api-removal-reject" ../../tests/nixos/vpn-confinement-v2-api-removal-reject.nix;
 
