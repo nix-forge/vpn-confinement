@@ -79,7 +79,9 @@
     machine.succeed("systemctl show -p Result --value netns-probe.service | grep -q '^success$'")
 
     machine.succeed("systemctl show -p NetworkNamespacePath --value netns-probe.service | grep -q '^/run/netns/vpnapps$'")
+    machine.succeed("systemctl show -p BindsTo --value netns-probe.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
     machine.succeed("systemctl show -p BindsTo --value netns-probe.service | grep -q 'wireguard-wg0.service'")
+    machine.succeed("systemctl show -p BindsTo --value wireguard-wg0.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
     machine.wait_for_unit("netns-lived.service")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'udp dport 53 drop'")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport 53 drop'")

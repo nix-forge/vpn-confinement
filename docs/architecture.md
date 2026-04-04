@@ -12,9 +12,10 @@ services.
 - Confinement uses a dedicated Linux network namespace at `/run/netns/<name>`.
 - WireGuard is configured via `networking.wireguard.interfaces.<if>` and
   assigned with `interfaceNamespace`.
-- The module can also set WireGuard `socketNamespace` per confinement namespace.
+- The module can also set WireGuard `socketNamespace` for advanced cases, but
+  the recommended path is to leave it unset or use `"init"`.
 - `wireguard-<if>.service` explicitly requires and orders after the namespace
-  preparation unit.
+  preparation unit and also binds to it for fail-closed teardown.
 - Namespace-local nftables enforces deny-by-default egress and allows only
   tunnel traffic according to namespace egress mode.
 - Store-generated resolver files are bind-mounted directly into confined units.
@@ -25,9 +26,11 @@ services.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
-- `dns.allowResolverHelpers = false` (default) blocks common host resolver
+- `dns.allowHostResolverIPC = false` (default) blocks common host resolver
   helpers (`/run/nscd` and system D-Bus sockets) in strict mode; setting it to
   `true` opts out of those helper blocks.
+- `dns.mode = "compat"` is a weaker compatibility path that skips strict DNS
+  containment entirely.
 - Egress policy is explicit:
   - `egress.mode = "allowAllTunnel"`: allow all tunnel egress (after DNS
     policy).
@@ -36,6 +39,11 @@ services.
   (`services.vpnConfinement.namespaces.<name>.ipv6.mode = "disable"`).
 - Namespace lifecycle is on-demand through
   `vpn-confinement-netns@<name>.service` and cleaned up when unneeded.
+- Confined services bind to both the namespace unit and the WireGuard unit so
+  namespace teardown propagates cleanly.
+- Optional `vpn.restrictBind = true` derives `SocketBindAllow` /
+  `SocketBindDeny` from namespace ingress policy as defense in depth for
+  service-created listeners.
 
 ## Security model
 
@@ -46,13 +54,16 @@ services.
   unavailable.
 - Runtime tunnel drops are propagated to vpn-enabled services and sockets with
   `BindsTo=wireguard-<if>.service`.
+- Namespace teardown is propagated through `BindsTo=vpn-confinement-netns@...`
+  on services, sockets, and generated WireGuard dependency units.
 - DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
   ports.
-- WireGuard peer endpoints may be literal IPs or hostnames. Hostname endpoints
-  require upstream WireGuard endpoint refresh
-  (`dynamicEndpointRefreshSeconds > 0`) so DNS changes are re-resolved.
+- WireGuard peer endpoints must be literal IPs for confinement-managed
+  namespaces.
 - Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
-  `dns.allowResolverHelpers = false` (or equivalent unit-local restrictions).
+  `dns.allowHostResolverIPC = false` (or equivalent unit-local restrictions).
+- Bind restrictions are supplemental hardening only; nftables remains the
+  primary policy mechanism.
 
 ## Socket activation pattern
 

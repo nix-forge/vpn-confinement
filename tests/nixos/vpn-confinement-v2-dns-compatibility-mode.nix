@@ -1,5 +1,5 @@
 _: {
-  name = "vpn-confinement-v2-dns-allow-resolver-helpers";
+  name = "vpn-confinement-v2-dns-compatibility-mode";
 
   nodes.machine =
     { pkgs, ... }:
@@ -25,9 +25,17 @@ _: {
             enable = true;
             wireguard.interface = "wg-compat";
             dns = {
+              mode = "compat";
+              servers = [ "10.64.0.1" ];
+            };
+          };
+          ns-helpers = {
+            enable = true;
+            wireguard.interface = "wg-helpers";
+            dns = {
               mode = "strict";
               servers = [ "10.64.0.1" ];
-              allowResolverHelpers = true;
+              allowHostResolverIPC = true;
             };
           };
         };
@@ -57,11 +65,24 @@ _: {
         ];
       };
 
+      networking.wireguard.interfaces.wg-helpers = {
+        privateKeyFile = "/run/wg-test/helpers.key";
+        ips = [ "10.71.216.233/32" ];
+        peers = [
+          {
+            publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
+            endpoint = "138.199.43.93:51820";
+            allowedIPs = [ "0.0.0.0/0" ];
+          }
+        ];
+      };
+
       systemd.services.test-vpn-private-keys = {
         wantedBy = [ "multi-user.target" ];
         before = [
           "wireguard-wg-strict.service"
           "wireguard-wg-compat.service"
+          "wireguard-wg-helpers.service"
         ];
         serviceConfig.Type = "oneshot";
         script = ''
@@ -69,7 +90,8 @@ _: {
           ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
           ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/strict.key
           ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/compat.key
-          ${pkgs.coreutils}/bin/chmod 0600 /run/wg-test/strict.key /run/wg-test/compat.key
+          ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/helpers.key
+          ${pkgs.coreutils}/bin/chmod 0600 /run/wg-test/strict.key /run/wg-test/compat.key /run/wg-test/helpers.key
         '';
       };
 
@@ -98,15 +120,33 @@ _: {
           namespace = "ns-compat";
         };
       };
+
+      systemd.services.svc-helpers = {
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          DynamicUser = true;
+          ExecStart = "${pkgs.coreutils}/bin/true";
+        };
+        vpn = {
+          enable = true;
+          namespace = "ns-helpers";
+        };
+      };
     };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("wireguard-wg-strict.service")
     machine.wait_for_unit("wireguard-wg-compat.service")
+    machine.wait_for_unit("wireguard-wg-helpers.service")
     machine.succeed("systemctl show -p InaccessiblePaths --value svc-strict.service | grep -q '/run/nscd'")
     machine.succeed("systemctl show -p InaccessiblePaths --value svc-strict.service | grep -q '/run/dbus/system_bus_socket'")
     machine.fail("systemctl show -p InaccessiblePaths --value svc-compat.service | grep -q '/run/nscd'")
     machine.fail("systemctl show -p InaccessiblePaths --value svc-compat.service | grep -q '/run/dbus/system_bus_socket'")
+    machine.fail("systemctl show -p BindReadOnlyPaths --value svc-compat.service | grep -q '/etc/resolv.conf'")
+    machine.fail("systemctl show -p InaccessiblePaths --value svc-helpers.service | grep -q '/run/nscd'")
+    machine.fail("systemctl show -p InaccessiblePaths --value svc-helpers.service | grep -q '/run/dbus/system_bus_socket'")
+    machine.succeed("systemctl show -p BindReadOnlyPaths --value svc-helpers.service | grep -q '/etc/resolv.conf'")
   '';
 }

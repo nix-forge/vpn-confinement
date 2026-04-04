@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-v2-ipv6-disable";
+  name = "vpn-confinement-v2-strict-dns-direct-port53-block";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-ipv6";
+    networking.hostName = "vpnc-v2-strict-dns-port53";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -13,12 +13,10 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.subnetIPv4 = "10.231.2.0/30";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
         };
-        ipv6.mode = "disable";
       };
     };
 
@@ -47,33 +45,20 @@
       '';
     };
 
-    systemd.services.netns-ipv6-probe = {
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "simple";
-        DynamicUser = true;
-        ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
-      };
-      vpn.enable = true;
-    };
-
     environment.systemPackages = [
       pkgs.iproute2
-      pkgs.iputils
       pkgs.nftables
-      pkgs.procps
     ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
-    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip6 daddr'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.all.disable_ipv6 | grep -q '^1$'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.default.disable_ipv6 | grep -q '^1$'")
-    machine.fail("ip netns exec vpnapps ping -6 -c1 ::1")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )lo( |$)'")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )wg0( |$)'")
+
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip daddr 10.64.0.1 udp dport 53 accept'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip daddr 10.64.0.1 tcp dport 53 accept'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'oifname \"wg0\" udp dport 53 drop'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'oifname \"wg0\" tcp dport 53 drop'")
+    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q '1.1.1.1.*dport 53 accept'")
   '';
 }

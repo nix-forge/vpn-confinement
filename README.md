@@ -17,9 +17,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Namespace-scoped policy (`one namespace = one trust domain`)
 - Native NixOS WireGuard integration via `networking.wireguard.interfaces`
 - Namespace-local nftables kill-switch
-- Namespace DNS policy with strict/relaxed modes and leak-port blocking
+- Namespace DNS policy with strict/compat modes and leak-port blocking
 - IPv6 fail-closed default (`disable` unless explicitly tunneled)
-- Runtime fail-closed lifecycle with `BindsTo=wireguard-<if>.service`
+- Runtime fail-closed lifecycle with namespace and WireGuard `BindsTo=`
+  propagation
+- Optional `vpn.restrictBind` listener allowlisting as defense in depth
 - No runtime writes to `/etc` or `/etc/netns`
 
 ## Quick start
@@ -46,11 +48,10 @@ than policy-routing-only setups for the "only these services use VPN" case.
   networking.wireguard.interfaces.wg0 = {
     privateKeyFile = "/run/keys/wg.key";
     ips = [ "10.0.0.2/32" ];
-    dynamicEndpointRefreshSeconds = 300;
     peers = [
       {
         publicKey = "...";
-        endpoint = "vpn.example.com:51820";
+        endpoint = "198.51.100.10:51820";
         allowedIPs = [ "0.0.0.0/0" ];
       }
     ];
@@ -116,9 +117,9 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
   - `wireguard.interface`
-  - `wireguard.socketNamespace = null | "init" | <name>`
-  - `dns.mode = "strict" | "relaxed"`
-  - `dns.allowResolverHelpers = false` by default
+  - `wireguard.socketNamespace = null | "init" | <name>` for advanced usage
+  - `dns.mode = "strict" | "compat"`
+  - `dns.allowHostResolverIPC = false` by default
   - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `hostLink.subnetIPv4 = null | "x.x.x.x/30"` (`null` auto-allocates from
@@ -126,6 +127,9 @@ than policy-routing-only setups for the "only these services use VPN" case.
   - `ipv6.mode = "disable" | "tunnel"` (default: `disable`)
   - `egress.mode = "allowAllTunnel" | "allowList"`
   - `egress.allowedTcpPorts`, `egress.allowedUdpPorts`, `egress.allowedCidrs`
+- Per-service hardening also includes optional
+  `systemd.services.<name>.vpn.restrictBind = true` to deny undeclared
+  service-created listeners.
 - A service is confined when `systemd.services.<name>.vpn.enable = true`; no
   global service target list exists.
 - DNS and firewall policy are namespace-wide. If two services need different
@@ -134,12 +138,13 @@ than policy-routing-only setups for the "only these services use VPN" case.
   `hosts: files myhostname dns` and blocks host resolver helper paths.
 - Strict DNS bind-mounts immutable store-generated resolver files directly onto
   `/etc/resolv.conf` and `/etc/nsswitch.conf` inside the confined unit.
-- `networking.wireguard.interfaces.<if>.peers.*.endpoint` may use literal IP
-  endpoints (`IPv4:port` or `[IPv6]:port`) or hostname endpoints
-  (`hostname:port`). Hostname endpoints require refresh
-  (`dynamicEndpointRefreshSeconds > 0` at interface or peer level).
-- Hostname endpoint refresh is owned by upstream
-  `networking.wireguard.interfaces.<if>`, not the confinement namespace API.
+- `networking.wireguard.interfaces.<if>.peers.*.endpoint` must use literal IP
+  endpoints (`IPv4:port` or `[IPv6]:port`). Hostname endpoints are rejected for
+  confinement-managed namespaces because their DNS resolution happens outside
+  the confined service namespace.
+- `wireguard.socketNamespace = "init"` is the main advanced case. Setting it to
+  the same confinement namespace is rejected because the WireGuard UDP socket
+  needs a birthplace namespace with an actual uplink.
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
 
@@ -147,12 +152,14 @@ than policy-routing-only setups for the "only these services use VPN" case.
 
 - `dns.mode = "strict"` is the secure default: namespace resolver bind mounts,
   resolver helper path blocking, and DNS-like leak-port blocking.
-- `dns.mode = "relaxed"` removes strict resolver pinning and leak-port blocking
+- `dns.mode = "compat"` removes strict resolver pinning and leak-port blocking
   for compatibility with software that needs custom resolver flows.
-- `dns.allowResolverHelpers = true` is the expert escape hatch for strict mode
+- `dns.allowHostResolverIPC = true` is the expert escape hatch for strict mode
   workloads that still need host resolver helpers like nscd or system D-Bus.
 - If an application intentionally bypasses system resolver behavior, use
   `egress.mode = "allowList"` with constrained `allowedCidrs`.
+- `vpn.restrictBind = true` is optional defense in depth for services that
+  should only listen on namespace-declared ingress ports.
 
 ## Threat model notes
 
@@ -162,6 +169,8 @@ than policy-routing-only setups for the "only these services use VPN" case.
   less pure than a tunnel-only namespace and should stay disabled unless needed.
 - nftables is intentionally kept as the enforcement backend; the static ruleset
   design is appropriate for this module's policy model.
+- systemd bind restrictions are supplemental hardening only; nftables remains
+  the primary enforcement layer.
 
 ## DNS caveat
 
@@ -170,11 +179,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
   configured resolver paths when `dns.mode = "strict"`.
 - Strict mode defaults to maximal helper blocking
-  (`dns.allowResolverHelpers = false`), including `/run/nscd` and system D-Bus
+  (`dns.allowHostResolverIPC = false`), including `/run/nscd` and system D-Bus
   sockets for confined services.
 - Applications that directly call host resolver APIs over D-Bus are outside this
-  guarantee when `dns.allowResolverHelpers = true`.
-- Set `dns.allowResolverHelpers = true` only for workloads that need host
+  guarantee when `dns.allowHostResolverIPC = true`.
+- Set `dns.allowHostResolverIPC = true` only for workloads that need host
   resolver helper access and accept the weaker DNS containment.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
@@ -199,6 +208,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
   keep the `.socket` in the host namespace and confine only the `.service`.
 - This lets systemd accept connections on host sockets while service-created
   outbound traffic stays inside VPN confinement.
+- That host-socket / confined-service split remains the recommended public path.
 - Enable `systemd.sockets.<name>.vpn.*` only when the listening socket itself
   must live inside the VPN namespace.
 

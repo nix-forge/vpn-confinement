@@ -55,15 +55,19 @@ _: {
 
       systemd.services.socket-host = {
         serviceConfig = {
-          Type = "oneshot";
+          Type = "simple";
           DynamicUser = true;
-          ExecStart = "${pkgs.coreutils}/bin/true";
+          RuntimeDirectory = "socket-host";
+          RuntimeDirectoryPreserve = "yes";
+          ExecStart = "${pkgs.runtimeShell} -c 'touch /run/socket-host/activated; exec ${pkgs.coreutils}/bin/cat >/dev/null'";
         };
         vpn = {
           enable = true;
           namespace = "vpnapps";
         };
       };
+
+      environment.systemPackages = [ pkgs.bash ];
     };
 
   testScript = ''
@@ -73,5 +77,7 @@ _: {
     machine.wait_for_unit("socket-host.socket")
     machine.fail("systemctl show -p NetworkNamespacePath --value socket-host.socket | grep -q '^/run/netns/vpnapps$'")
     machine.succeed("systemctl show -p NetworkNamespacePath --value socket-host.service | grep -q '^/run/netns/vpnapps$'")
+    machine.succeed("bash -lc 'exec 3<>/dev/tcp/127.0.0.1/18081; printf ping >&3; exec 3>&-' ")
+    machine.wait_until_succeeds("test -f /run/socket-host/activated")
   '';
 }

@@ -13,7 +13,7 @@ _: {
         enable = true;
         wireguard = {
           interface = "wg0";
-          socketNamespace = "bad/name";
+          socketNamespace = "vpnapps";
         };
         dns = {
           mode = "strict";

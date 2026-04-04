@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-v2-ipv6-disable";
+  name = "vpn-confinement-v2-namespace-stop-propagates";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-ipv6";
+    networking.hostName = "vpnc-v2-namespace-stop";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -13,12 +13,10 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.subnetIPv4 = "10.231.2.0/30";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
         };
-        ipv6.mode = "disable";
       };
     };
 
@@ -47,7 +45,7 @@
       '';
     };
 
-    systemd.services.netns-ipv6-probe = {
+    systemd.services.netns-lived = {
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
@@ -57,23 +55,21 @@
       vpn.enable = true;
     };
 
-    environment.systemPackages = [
-      pkgs.iproute2
-      pkgs.iputils
-      pkgs.nftables
-      pkgs.procps
-    ];
+    environment.systemPackages = [ pkgs.iproute2 ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
-    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip6 daddr'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.all.disable_ipv6 | grep -q '^1$'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.default.disable_ipv6 | grep -q '^1$'")
-    machine.fail("ip netns exec vpnapps ping -6 -c1 ::1")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )lo( |$)'")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )wg0( |$)'")
+    machine.wait_for_unit("wireguard-wg0.service")
+    machine.wait_for_unit("netns-lived.service")
+
+    machine.succeed("systemctl show -p BindsTo --value netns-lived.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
+    machine.succeed("systemctl show -p BindsTo --value wireguard-wg0.service | grep -q 'vpn-confinement-netns@vpnapps.service'")
+
+    machine.succeed("systemctl stop vpn-confinement-netns@vpnapps.service")
+    machine.wait_until_succeeds("systemctl show -p ActiveState --value netns-lived.service | grep -q '^inactive$'")
+    machine.wait_until_succeeds("systemctl show -p ActiveState --value wireguard-wg0.service | grep -q '^inactive$'")
+    machine.wait_until_succeeds("! ip netns list | grep -q '^vpnapps\\b'")
   '';
 }

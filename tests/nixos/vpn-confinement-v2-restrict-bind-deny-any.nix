@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-v2-ipv6-disable";
+  name = "vpn-confinement-v2-restrict-bind-deny-any";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-ipv6";
+    networking.hostName = "vpnc-v2-restrict-bind-deny";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -13,12 +13,10 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.subnetIPv4 = "10.231.2.0/30";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
         };
-        ipv6.mode = "disable";
       };
     };
 
@@ -47,33 +45,23 @@
       '';
     };
 
-    systemd.services.netns-ipv6-probe = {
-      wantedBy = [ "multi-user.target" ];
+    systemd.services.bind-denied = {
       serviceConfig = {
         Type = "simple";
         DynamicUser = true;
-        ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
+        ExecStart = "${pkgs.python3}/bin/python3 -m http.server 18082 --bind 127.0.0.1";
       };
-      vpn.enable = true;
+      vpn = {
+        enable = true;
+        restrictBind = true;
+      };
     };
-
-    environment.systemPackages = [
-      pkgs.iproute2
-      pkgs.iputils
-      pkgs.nftables
-      pkgs.procps
-    ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
-    machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
-    machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip6 daddr'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.all.disable_ipv6 | grep -q '^1$'")
-    machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.default.disable_ipv6 | grep -q '^1$'")
-    machine.fail("ip netns exec vpnapps ping -6 -c1 ::1")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )lo( |$)'")
-    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )wg0( |$)'")
+    machine.wait_for_unit("wireguard-wg0.service")
+    machine.succeed("systemctl show -p SocketBindDeny --value bind-denied.service | grep -q '^any$'")
+    machine.fail("systemctl start bind-denied.service")
   '';
 }

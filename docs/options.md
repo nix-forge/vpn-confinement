@@ -10,7 +10,7 @@
 - `services.vpnConfinement.namespaces.<name>.dns.mode`
 - `services.vpnConfinement.namespaces.<name>.dns.servers`
 - `services.vpnConfinement.namespaces.<name>.dns.search`
-- `services.vpnConfinement.namespaces.<name>.dns.allowResolverHelpers`
+- `services.vpnConfinement.namespaces.<name>.dns.allowHostResolverIPC`
 - `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 - `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 - `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
@@ -29,6 +29,7 @@
 - `systemd.services.<name>.vpn.enable`
 - `systemd.services.<name>.vpn.namespace`
 - `systemd.services.<name>.vpn.hardeningProfile`
+- `systemd.services.<name>.vpn.restrictBind`
 
 ## Per socket
 
@@ -40,10 +41,10 @@
 - A service is confined when `systemd.services.<name>.vpn.enable = true`.
 - `services.vpnConfinement.targetServices` was removed in v2.
 - DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
-- `dns.mode` values are `strict` or `relaxed`.
-- `dns.allowResolverHelpers = false` (default) blocks system D-Bus and
+- `dns.mode` values are `strict` or `compat`.
+- `dns.allowHostResolverIPC = false` (default) blocks system D-Bus and
   `/run/nscd` helper paths in strict mode.
-- `dns.allowResolverHelpers = true` relaxes helper-path blocking for
+- `dns.allowHostResolverIPC = true` relaxes helper-path blocking for
   compatibility.
 - `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
 - `egress.mode = "allowList"` allows only configured `allowed*` rules.
@@ -57,11 +58,15 @@
   `DynamicUser = true` or non-root `User` is set.
 - Namespace is the trust boundary. Services in one namespace share firewall and
   DNS policy.
+- `vpn.restrictBind = true` denies service-created listeners unless they match
+  the namespace ingress policy; when no ingress is declared it becomes
+  `SocketBindDeny=any`.
 - Socket units can be vpn-enabled and should match namespace policy with their
   target service.
-- WireGuard peer endpoints can be literal IPs or hostnames. Hostname endpoints
-  require upstream WireGuard endpoint refresh
-  (`dynamicEndpointRefreshSeconds > 0`).
+- WireGuard peer endpoints for confinement-managed namespaces must be literal IP
+  endpoints.
+- `wireguard.socketNamespace` is advanced. `"init"` is the main supported
+  override; setting it to the same confinement namespace is rejected.
 
 ## Notes on removed options
 

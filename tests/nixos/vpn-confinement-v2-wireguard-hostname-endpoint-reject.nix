@@ -1,10 +1,10 @@
 _: {
-  name = "vpn-confinement-v2-wireguard-endpoint-literal-reject";
+  name = "vpn-confinement-v2-wireguard-hostname-endpoint-reject";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-endpoint-reject";
+    networking.hostName = "vpnc-v2-endpoint-hostname-reject";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -22,11 +22,11 @@ _: {
     networking.wireguard.interfaces.wg0 = {
       privateKeyFile = "/run/wg-test/private.key";
       ips = [ "10.71.216.231/32" ];
-      dynamicEndpointRefreshSeconds = 0;
+      dynamicEndpointRefreshSeconds = 300;
       peers = [
         {
           publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
-          endpoint = "vpn.example.com:51820";
+          endpoint = "localhost:51820";
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];

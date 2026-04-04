@@ -53,17 +53,11 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-socket-activation.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-wireguard-hostname-endpoint-refresh = pkgs.testers.runNixOSTest (
-        import ../../tests/nixos/vpn-confinement-v2-wireguard-hostname-endpoint-refresh.nix {
-          inherit pkgs;
-        }
-      );
-
       checks.vpn-confinement-v2-dns-system-bus-block = pkgs.testers.runNixOSTest (
         import ../../tests/nixos/vpn-confinement-v2-dns-system-bus-block.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-dns-allow-resolver-helpers = pkgs.testers.runNixOSTest (
+      checks.vpn-confinement-v2-dns-compatibility-mode = pkgs.testers.runNixOSTest (
         import ../../tests/nixos/vpn-confinement-v2-dns-compatibility-mode.nix { inherit pkgs; }
       );
 
@@ -71,11 +65,27 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-host-socket-vpn-service-pattern.nix { inherit pkgs; }
       );
 
+      checks.vpn-confinement-v2-namespace-stop-propagates = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-namespace-stop-propagates.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-strict-dns-direct-port53-block = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-strict-dns-direct-port53-block.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-restrict-bind-deny-any = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-restrict-bind-deny-any.nix { inherit pkgs; }
+      );
+
+      checks.vpn-confinement-v2-restrict-bind-allow-ingress = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-restrict-bind-allow-ingress.nix { inherit pkgs; }
+      );
+
       checks.vpn-confinement-v2-hostlink-disabled-no-ingress = mkEvalRejectCheck "vpn-confinement-v2-hostlink-disabled-no-ingress" ../../tests/nixos/vpn-confinement-v2-hostlink-disabled-no-ingress.nix;
 
       checks.vpn-confinement-v2-egress-ipv6-cidr-reject = mkEvalRejectCheck "vpn-confinement-v2-egress-ipv6-cidr-reject" ../../tests/nixos/vpn-confinement-v2-egress-ipv6-cidr-reject.nix;
 
-      checks.vpn-confinement-v2-wireguard-endpoint-literal-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-literal-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-literal-reject.nix;
+      checks.vpn-confinement-v2-wireguard-hostname-endpoint-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-hostname-endpoint-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-hostname-endpoint-reject.nix;
 
       checks.vpn-confinement-v2-wireguard-endpoint-ipv6-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-endpoint-ipv6-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-endpoint-ipv6-reject.nix;
 
