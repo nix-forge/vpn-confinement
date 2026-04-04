@@ -72,6 +72,19 @@
       };
     };
 
+    systemd.services.netns-echo-extra-strict = {
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        DynamicUser = true;
+        ExecStart = "${pkgs.coreutils}/bin/true";
+      };
+      vpn = {
+        enable = true;
+        hardeningProfile = "strict";
+      };
+    };
+
     environment.systemPackages = [
       pkgs.curl
       pkgs.iproute2
@@ -99,8 +112,9 @@
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ct state invalid drop'")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'meta nfproto ipv6 drop'")
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -Eq 'iifname \"ve-vpnapps-ns\" ip saddr 10\\.231\\.0\\.1 tcp dport (\\{ 8080 \\}|8080) accept'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'udp dport { 53, 853, 5353, 5355 } drop'")
-    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport { 53, 853, 5353, 5355 } drop'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'set dns_blocked_ports'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'udp dport @dns_blocked_ports drop'")
+    machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport @dns_blocked_ports drop'")
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -Eq '/nix/store/.+-vpn-confinement-vpnapps\\.resolv\\.conf:/etc/resolv\\.conf'")
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -Eq '/nix/store/.+-vpn-confinement-vpnapps\\.nsswitch\\.conf:/etc/nsswitch\\.conf'")
     machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/systemd/resolve'")
@@ -111,8 +125,9 @@
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )ve-vpnapps-ns( |$)'")
     machine.succeed("systemctl show -p ProtectSystem --value netns-echo-strict.service | grep -q '^strict$'")
     machine.succeed("systemctl show -p ProtectHome --value netns-echo-strict.service | grep -q '^yes$'")
-    machine.succeed("systemctl show -p SystemCallFilter --value netns-echo-strict.service | grep -Eq '(^| )~@mount( |$)'")
-    machine.succeed("systemctl stop netns-echo.service")
+    machine.fail("systemctl show -p ProcSubset --value netns-echo-strict.service | grep -q '^pid$'")
+    machine.succeed("systemctl show -p ProcSubset --value netns-echo-extra-strict.service | grep -q '^pid$'")
+    machine.succeed("systemctl stop netns-echo.service netns-echo-strict.service netns-echo-extra-strict.service wireguard-wg0.service")
     machine.wait_until_succeeds("! ip netns list | grep -q '^vpnapps\\b'")
   '';
 }

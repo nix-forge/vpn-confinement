@@ -12,6 +12,7 @@ let
     mkIf
     mkMerge
     mkOption
+    mkOverride
     types
     unique
     ;
@@ -38,7 +39,6 @@ let
     ProtectKernelTunables = mkDefault true;
     ProtectKernelLogs = mkDefault true;
     ProtectProc = mkDefault "invisible";
-    ProcSubset = mkDefault "pid";
     RestrictNamespaces = mkDefault true;
     ProtectClock = mkDefault true;
     ProtectHostname = mkDefault true;
@@ -174,8 +174,8 @@ in
             })
             (mkIf (config.vpn.hardeningProfile == "strict") {
               serviceConfig = hardeningStrict // {
-                ProtectSystem = mkDefault "strict";
-                ProtectHome = mkDefault true;
+                ProtectSystem = mkOverride 900 "strict";
+                ProtectHome = mkOverride 900 true;
               };
             })
           ]);

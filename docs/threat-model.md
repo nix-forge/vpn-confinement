@@ -20,6 +20,8 @@
 - Strict DNS pins common resolver behavior to namespace-local generated
   `resolv.conf` / `nsswitch.conf` and blocks classic DNS-like leak ports (`53`,
   `853`, `5353`, `5355`) except for configured resolvers.
+- High assurance means strict DNS plus destination-constrained allowlisting
+  (`egress.mode = "allowList"` with tightly scoped `allowedCidrs`).
 - IPv6 is fail-closed by default unless explicitly tunneled.
 - Listener exposure is namespace-scoped first, with optional service-level bind
   restrictions as defense in depth.
@@ -51,11 +53,23 @@
 
 ## Endpoint policy
 
-- WireGuard peer endpoints for confinement-managed namespaces must be literal IP
-  endpoints.
-- Hostname endpoints are rejected by default because their DNS resolution occurs
-  outside the confined service namespace, weakening the module's no-DNS-leak
-  story.
+- Literal WireGuard peer endpoints are the recommended default.
+- Hostname endpoints are allowed only when effective dynamic endpoint refresh is
+  enabled at the interface or peer level.
+- Even with refresh enabled, hostname endpoints are weaker than literal IPs:
+  resolution is performed by WireGuard management units, not the confined
+  service, so it is outside the module's strict DNS guarantee.
+
+## Threat matrix
+
+| Threat                                                        | `dns.mode` | `egress.mode` | `hostLink` | `ipv6.mode` | Other control                                                  | Result                                    |
+| ------------------------------------------------------------- | ---------- | ------------- | ---------- | ----------- | -------------------------------------------------------------- | ----------------------------------------- |
+| Classic DNS leak (`resolv.conf`, `53`, `853`, `5353`, `5355`) | `strict`   | any           | any        | any         | strict bind mounts + helper blocking + nftables DNS rules      | Covered                                   |
+| DoH / DoQ to arbitrary destinations                           | any        | `allowList`   | any        | any         | constrained `allowedCidrs`                                     | Covered only for allowlisted destinations |
+| Route-table / host-routing leak                               | any        | any           | any        | any         | dedicated namespace + WireGuard `interfaceNamespace` ownership | Covered by default design                 |
+| IPv6 leak                                                     | any        | any           | any        | `disable`   | nftables IPv6 drop + namespace sysctls                         | Covered                                   |
+| Host-to-namespace ingress                                     | any        | any           | `false`    | any         | no host-link veth path                                         | Covered                                   |
+| Runtime tunnel drop                                           | any        | any           | any        | any         | `BindsTo=` between namespace, WireGuard, services, and sockets | Covered                                   |
 
 ## Non-goals
 
@@ -72,6 +86,8 @@
   DNS-like egress, but applications can still implement their own encrypted DNS
   over generic allowed destinations unless `egress.mode = "allowList"` is used
   with constrained CIDRs.
+- `dns.mode = "strict"` should be read as "common resolver leak resistance", not
+  as a blanket claim that all DNS exfiltration paths are eliminated.
 - Service bind restrictions are supplemental hardening only; nftables remains
   the primary enforcement layer.
 - Socket and service units should share the same namespace policy when both are

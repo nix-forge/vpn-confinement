@@ -48,6 +48,10 @@
   compatibility.
 - `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
 - `egress.mode = "allowList"` allows only configured `allowed*` rules.
+- `dns.mode = "strict"` means common resolver leak resistance, not blanket
+  prevention of all encrypted DNS schemes.
+- `high assurance` means `dns.mode = "strict"` plus `egress.mode = "allowList"`
+  with tightly constrained `allowedCidrs`.
 - `hostLink.subnetIPv4` must be an IPv4 `/30` network base when set.
 - `ingress.fromHost.tcp` requires `hostLink.enable = true`.
 - `hostLink.hostIf` and `hostLink.nsIf` must be distinct and must not reuse the
@@ -63,10 +67,19 @@
   `SocketBindDeny=any`.
 - Socket units can be vpn-enabled and should match namespace policy with their
   target service.
-- WireGuard peer endpoints for confinement-managed namespaces must be literal IP
-  endpoints.
+- Literal WireGuard peer endpoints are recommended.
+- Hostname endpoints are allowed only with effective
+  `dynamicEndpointRefreshSeconds > 0`.
+- Hostname endpoint refresh is weaker than literal IP endpoints because it is
+  performed by WireGuard management units rather than the confined service.
 - `wireguard.socketNamespace` is advanced. `"init"` is the main supported
   override; setting it to the same confinement namespace is rejected.
+- `networking.wireguard.interfaces.<if>.allowedIPsAsRoutes = false` is advanced
+  and emits a warning because confinement expects peer routes to be installed.
+- `networking.wireguard.interfaces.<if>.fwMark` remains an upstream advanced
+  escape hatch.
+- `networking.wireguard.interfaces.<if>.mtu` remains an upstream performance
+  tuning control.
 
 ## Notes on removed options
 

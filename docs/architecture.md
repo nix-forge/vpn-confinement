@@ -14,6 +14,10 @@ services.
   assigned with `interfaceNamespace`.
 - The module can also set WireGuard `socketNamespace` for advanced cases, but
   the recommended path is to leave it unset or use `"init"`.
+- `interfaceNamespace` is the main mechanism: the WireGuard link itself is kept
+  inside the confinement namespace.
+- `socketNamespace` controls only the UDP socket birthplace and should be viewed
+  as an advanced escape hatch, not the primary design surface.
 - `wireguard-<if>.service` explicitly requires and orders after the namespace
   preparation unit and also binds to it for fail-closed teardown.
 - Namespace-local nftables enforces deny-by-default egress and allows only
@@ -23,6 +27,9 @@ services.
   `services.vpnConfinement.namespaces.<name>.dns.mode`.
 - In `dns.mode = "strict"`, DNS policy blocks non-allowlisted DNS-like traffic
   on ports `53`, `853`, `5353`, and `5355` before generic tunnel egress allow.
+- `dns.mode = "strict"` is about common resolver leak resistance.
+- High assurance requires `dns.mode = "strict"` plus `egress.mode = "allowList"`
+  with constrained `allowedCidrs`.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
@@ -35,6 +42,8 @@ services.
   - `egress.mode = "allowAllTunnel"`: allow all tunnel egress (after DNS
     policy).
   - `egress.mode = "allowList"`: allow only configured ports/CIDRs.
+- nftables rules use named sets for DNS servers, blocked DNS ports, allowed
+  ports, and allowed CIDRs so the policy stays auditable as the ruleset grows.
 - IPv6 defaults to fail-closed
   (`services.vpnConfinement.namespaces.<name>.ipv6.mode = "disable"`).
 - Namespace lifecycle is on-demand through
@@ -58,8 +67,9 @@ services.
   on services, sockets, and generated WireGuard dependency units.
 - DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
   ports.
-- WireGuard peer endpoints must be literal IPs for confinement-managed
-  namespaces.
+- Literal WireGuard peer endpoints are preferred.
+- Hostname endpoints are permitted only with endpoint refresh enabled and remain
+  outside the module's strict DNS guarantee.
 - Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
   `dns.allowHostResolverIPC = false` (or equivalent unit-local restrictions).
 - Bind restrictions are supplemental hardening only; nftables remains the
@@ -80,6 +90,9 @@ services.
   port-based policy.
 - DNS-over-HTTPS/DNS-over-QUIC can still traverse generic egress paths unless
   destination allowlisting is enabled.
+- `networking.wireguard.interfaces.<if>.fwMark` and `.mtu` remain upstream
+  WireGuard controls; this module documents them but does not build policy
+  around them.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
 - For strict environments, combine confinement with application policy and

@@ -18,6 +18,7 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - Native NixOS WireGuard integration via `networking.wireguard.interfaces`
 - Namespace-local nftables kill-switch
 - Namespace DNS policy with strict/compat modes and leak-port blocking
+- Clear split between common resolver leak resistance and high-assurance egress
 - IPv6 fail-closed default (`disable` unless explicitly tunneled)
 - Runtime fail-closed lifecycle with namespace and WireGuard `BindsTo=`
   propagation
@@ -138,28 +139,57 @@ than policy-routing-only setups for the "only these services use VPN" case.
   `hosts: files myhostname dns` and blocks host resolver helper paths.
 - Strict DNS bind-mounts immutable store-generated resolver files directly onto
   `/etc/resolv.conf` and `/etc/nsswitch.conf` inside the confined unit.
-- `networking.wireguard.interfaces.<if>.peers.*.endpoint` must use literal IP
-  endpoints (`IPv4:port` or `[IPv6]:port`). Hostname endpoints are rejected for
-  confinement-managed namespaces because their DNS resolution happens outside
-  the confined service namespace.
 - `wireguard.socketNamespace = "init"` is the main advanced case. Setting it to
   the same confinement namespace is rejected because the WireGuard UDP socket
   needs a birthplace namespace with an actual uplink.
+- The module owns `networking.wireguard.interfaces.<if>.interfaceNamespace` for
+  confinement-managed interfaces and keeps the WireGuard link inside the
+  confinement namespace.
+- `networking.wireguard.interfaces.<if>.socketNamespace` stays an advanced
+  escape hatch for the UDP socket birthplace. Leave it unset for the default
+  host/init-namespace socket behavior unless you have a specific routing need.
 - The module warns when a vpn-enabled service still runs as root without
   `DynamicUser = true` or an explicit non-root `User`.
+- Literal WireGuard peer endpoints remain the recommended default. Hostname
+  endpoints are allowed only when effective dynamic refresh is enabled
+  (`dynamicEndpointRefreshSeconds > 0` at the interface or peer level), and the
+  module warns because this path is weaker than literal IPs.
+- `networking.wireguard.interfaces.<if>.allowedIPsAsRoutes = false` is treated
+  as advanced and emits a warning because confinement expects peer `allowedIPs`
+  routes to exist inside the namespace.
+- `networking.wireguard.interfaces.<if>.fwMark` remains an upstream WireGuard
+  escape hatch for policy-routing-heavy setups; the confinement model does not
+  depend on it.
+- `networking.wireguard.interfaces.<if>.mtu` remains an upstream performance
+  tuning knob; this module does not add extra MTU logic.
 
-## Compatibility vs strict
+## Strict vs high assurance
 
-- `dns.mode = "strict"` is the secure default: namespace resolver bind mounts,
-  resolver helper path blocking, and DNS-like leak-port blocking.
+- `dns.mode = "strict"` means common resolver leak resistance: namespace
+  resolver bind mounts, helper-path blocking, and DNS-like leak-port blocking.
 - `dns.mode = "compat"` removes strict resolver pinning and leak-port blocking
   for compatibility with software that needs custom resolver flows.
 - `dns.allowHostResolverIPC = true` is the expert escape hatch for strict mode
   workloads that still need host resolver helpers like nscd or system D-Bus.
-- If an application intentionally bypasses system resolver behavior, use
-  `egress.mode = "allowList"` with constrained `allowedCidrs`.
+- `high assurance` means `dns.mode = "strict"` plus `egress.mode = "allowList"`
+  with tightly constrained `allowedCidrs`.
+- If an application intentionally bypasses system resolver behavior, destination
+  allowlisting is the control that matters.
 - `vpn.restrictBind = true` is optional defense in depth for services that
   should only listen on namespace-declared ingress ports.
+
+## Threat model matrix
+
+See `docs/threat-model.md` for the full write-up. The short version is:
+
+| Threat                                                  | dns.mode | egress.mode | hostLink | ipv6.mode | Other control                                        | Covered when                  |
+| ------------------------------------------------------- | -------- | ----------- | -------- | --------- | ---------------------------------------------------- | ----------------------------- |
+| Classic DNS leak (`resolv.conf`, port 53/853/5353/5355) | `strict` | any         | any      | any       | strict resolver bind mounts + nftables DNS rules     | `dns.mode = "strict"`         |
+| DoH / DoQ to arbitrary destinations                     | any      | `allowList` | any      | any       | constrained `allowedCidrs`                           | allowlisted destinations only |
+| Route-table / host-routing leak                         | any      | any         | any      | any       | dedicated namespace + `interfaceNamespace` ownership | default design                |
+| IPv6 leak                                               | any      | any         | any      | `disable` | namespace-local IPv6 drop + sysctls                  | `ipv6.mode = "disable"`       |
+| Host-to-namespace ingress exposure                      | any      | any         | `false`  | any       | no host veth path                                    | `hostLink.enable = false`     |
+| Runtime tunnel drop                                     | any      | any         | any      | any       | `BindsTo=` on namespace and WireGuard units          | default design                |
 
 ## Threat model notes
 
@@ -178,6 +208,8 @@ than policy-routing-only setups for the "only these services use VPN" case.
   `/run/systemd/resolve` helpers) within confined services.
 - Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
   configured resolver paths when `dns.mode = "strict"`.
+- Strict DNS does not mean "all DNS exfiltration is impossible". It means the
+  common resolver paths are pinned and classic DNS-like egress is blocked.
 - Strict mode defaults to maximal helper blocking
   (`dns.allowHostResolverIPC = false`), including `/run/nscd` and system D-Bus
   sockets for confined services.
@@ -188,6 +220,17 @@ than policy-routing-only setups for the "only these services use VPN" case.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
   `egress.mode = "allowList"` with constrained `allowedCidrs`).
+
+## WireGuard endpoint model
+
+- The WireGuard interface itself lives in the confinement namespace via
+  `interfaceNamespace`.
+- The UDP socket birthplace is controlled by `socketNamespace`; leaving it unset
+  keeps the standard host/init namespace behavior.
+- Literal peer endpoints are strongest.
+- Hostname endpoints are accepted only with periodic refresh enabled, and they
+  sit outside the strict DNS guarantee because the refresh is done by the
+  WireGuard management units rather than the confined service.
 
 ## Compatibility baseline
 

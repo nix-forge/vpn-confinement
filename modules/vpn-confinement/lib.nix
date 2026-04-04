@@ -349,7 +349,9 @@ in
 {
   uniquePorts = unique;
 
-  renderPortSet = ports: "{ ${concatMapStringsSep ", " toString ports} }";
+  renderNftSetElements = values: "{ ${concatMapStringsSep ", " toString values} }";
+
+  renderPortSet = values: "{ ${concatMapStringsSep ", " toString values} }";
 
   splitDns = dnsSplit;
 

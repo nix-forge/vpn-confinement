@@ -92,9 +92,33 @@ let
     5355
   ];
 
+  mkNftSet =
+    name: typeName: withInterval: elements:
+    if elements == [ ] then
+      ""
+    else
+      ''
+        set ${name} {
+          type ${typeName};
+          ${optionalString withInterval "flags interval;"}
+          elements = ${vpnLib.renderNftSetElements elements};
+        }
+      '';
+
+  mkDnsSetDefinitions =
+    ns:
+    let
+      dns = vpnLib.splitDns ns.dns.servers;
+    in
+    ''
+      ${mkNftSet "dns_servers_v4" "ipv4_addr" false dns.ipv4}
+      ${optionalString (ns.ipv6.mode == "tunnel") (mkNftSet "dns_servers_v6" "ipv6_addr" false dns.ipv6)}
+      ${mkNftSet "dns_blocked_ports" "inet_service" false blockedDnsPorts}
+    '';
+
   mkDnsBlockedPortRules = ns: ''
-    oifname "${ns.wireguard.interface}" udp dport ${vpnLib.renderPortSet blockedDnsPorts} drop
-    oifname "${ns.wireguard.interface}" tcp dport ${vpnLib.renderPortSet blockedDnsPorts} drop
+    oifname "${ns.wireguard.interface}" udp dport @dns_blocked_ports drop
+    oifname "${ns.wireguard.interface}" tcp dport @dns_blocked_ports drop
   '';
 
   mkDnsOutputRules =
@@ -106,15 +130,32 @@ let
     in
     ''
       ${optionalString hasV4 ''
-        oifname "${ns.wireguard.interface}" ip daddr ${vpnLib.renderPortSet dns.ipv4} udp dport 53 accept
-        oifname "${ns.wireguard.interface}" ip daddr ${vpnLib.renderPortSet dns.ipv4} tcp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip daddr @dns_servers_v4 udp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip daddr @dns_servers_v4 tcp dport 53 accept
       ''}
       ${optionalString hasV6 ''
-        oifname "${ns.wireguard.interface}" ip6 daddr ${vpnLib.renderPortSet dns.ipv6} udp dport 53 accept
-        oifname "${ns.wireguard.interface}" ip6 daddr ${vpnLib.renderPortSet dns.ipv6} tcp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip6 daddr @dns_servers_v6 udp dport 53 accept
+        oifname "${ns.wireguard.interface}" ip6 daddr @dns_servers_v6 tcp dport 53 accept
       ''}
       oifname "${ns.wireguard.interface}" udp dport 53 drop
       oifname "${ns.wireguard.interface}" tcp dport 53 drop
+    '';
+
+  mkEgressSetDefinitions =
+    ns:
+    let
+      allowedTcp = unique ns.egress.allowedTcpPorts;
+      allowedUdp = unique ns.egress.allowedUdpPorts;
+      allowedCidrs = unique ns.egress.allowedCidrs;
+      cidrs = vpnLib.splitCidrs allowedCidrs;
+    in
+    ''
+      ${mkNftSet "allowed_tcp_ports" "inet_service" false allowedTcp}
+      ${mkNftSet "allowed_udp_ports" "inet_service" false allowedUdp}
+      ${mkNftSet "allowed_ipv4_cidrs" "ipv4_addr" true cidrs.ipv4}
+      ${optionalString (ns.ipv6.mode == "tunnel") (
+        mkNftSet "allowed_ipv6_cidrs" "ipv6_addr" true cidrs.ipv6
+      )}
     '';
 
   mkEgressRules =
@@ -127,19 +168,18 @@ let
 
       mkPortRule =
         proto: ports:
-        let
-          portSet = vpnLib.renderPortSet ports;
-          defaultRule = "oifname \"${ns.wireguard.interface}\" ${proto} dport ${portSet} accept";
-          ipv4Rule = "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet cidrs.ipv4} ${proto} dport ${portSet} accept";
-          ipv6Rule = "oifname \"${ns.wireguard.interface}\" ip6 daddr ${vpnLib.renderPortSet cidrs.ipv6} ${proto} dport ${portSet} accept";
-        in
         if ports == [ ] then
           ""
         else if allowedCidrs == [ ] then
-          defaultRule
+          "oifname \"${ns.wireguard.interface}\" ${proto} dport @allowed_${proto}_ports accept"
         else
           concatMapStringsSep "\n" (rule: rule) (
-            lib.optionals (cidrs.ipv4 != [ ]) [ ipv4Rule ] ++ lib.optionals (cidrs.ipv6 != [ ]) [ ipv6Rule ]
+            lib.optionals (cidrs.ipv4 != [ ]) [
+              "oifname \"${ns.wireguard.interface}\" ip daddr @allowed_ipv4_cidrs ${proto} dport @allowed_${proto}_ports accept"
+            ]
+            ++ lib.optionals (cidrs.ipv6 != [ ]) [
+              "oifname \"${ns.wireguard.interface}\" ip6 daddr @allowed_ipv6_cidrs ${proto} dport @allowed_${proto}_ports accept"
+            ]
           );
 
       cidrOnlyRules =
@@ -148,10 +188,10 @@ let
         else
           concatMapStringsSep "\n" (rule: rule) (
             lib.optionals (cidrs.ipv4 != [ ]) [
-              "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet cidrs.ipv4} accept"
+              "oifname \"${ns.wireguard.interface}\" ip daddr @allowed_ipv4_cidrs accept"
             ]
             ++ lib.optionals (cidrs.ipv6 != [ ]) [
-              "oifname \"${ns.wireguard.interface}\" ip6 daddr ${vpnLib.renderPortSet cidrs.ipv6} accept"
+              "oifname \"${ns.wireguard.interface}\" ip6 daddr @allowed_ipv6_cidrs accept"
             ]
           );
     in
@@ -172,6 +212,9 @@ let
     in
     ''
       table inet vpnc {
+        ${optionalString strictDns (mkDnsSetDefinitions ns)}
+        ${optionalString (ns.egress.mode == "allowList") (mkEgressSetDefinitions ns)}
+
         chain input {
           type filter hook input priority filter; policy drop;
           iifname "lo" accept
@@ -296,6 +339,29 @@ let
 
   wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
 
+  wireguardPeerRefreshSeconds =
+    wgConfig: peer:
+    let
+      peerRefresh = peer.dynamicEndpointRefreshSeconds or null;
+    in
+    if peerRefresh != null then peerRefresh else wgConfig.dynamicEndpointRefreshSeconds or 0;
+
+  wireguardPeerHasHostnameEndpoint =
+    peer:
+    let
+      endpoint = peer.endpoint or null;
+    in
+    endpoint != null && vpnLib.endpointIsHostname endpoint;
+
+  wireguardHostnameEndpointsHaveRefresh =
+    wgConfig:
+    builtins.all (
+      peer: !(wireguardPeerHasHostnameEndpoint peer) || wireguardPeerRefreshSeconds wgConfig peer > 0
+    ) (wgConfig.peers or [ ]);
+
+  wireguardHasHostnameEndpoints =
+    wgConfig: builtins.any wireguardPeerHasHostnameEndpoint (wgConfig.peers or [ ]);
+
   activeHostLinks = lib.filter (
     nsName:
     let
@@ -395,13 +461,10 @@ let
           || (
             let
               wgConfig = config.networking.wireguard.interfaces.${wg};
-              endpoints = builtins.filter (endpoint: endpoint != null) (
-                map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
-              );
             in
-            builtins.all (endpoint: !vpnLib.endpointIsHostname endpoint) endpoints
+            wireguardHostnameEndpointsHaveRefresh wgConfig
           );
-        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to use literal IP endpoints only; hostname endpoints are rejected for confinement-managed namespaces.";
+        message = "services.vpnConfinement.namespaces.${nsName} allows hostname WireGuard endpoints only when effective dynamic endpoint refresh is enabled on networking.wireguard.interfaces.${wg} (interface-level or per-peer dynamicEndpointRefreshSeconds > 0).";
       }
       {
         assertion =
@@ -515,6 +578,22 @@ let
       "systemd.services.${serviceName} has vpn.enable = true but still runs as root. Prefer serviceConfig.DynamicUser = true or set a dedicated non-root serviceConfig.User."
     ]
   ) vpnEnabledServiceNames;
+
+  namespaceWarnings = builtins.concatMap (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+      wg = ns.wireguard.interface;
+      wgExists = builtins.hasAttr wg config.networking.wireguard.interfaces;
+      wgConfig = if wgExists then config.networking.wireguard.interfaces.${wg} else null;
+    in
+    lib.optionals (wgExists && wireguardHasHostnameEndpoints wgConfig) [
+      "services.vpnConfinement.namespaces.${nsName} uses hostname WireGuard peer endpoints on ${wg}. This is allowed only with endpoint refresh enabled and is weaker than literal IP endpoints because hostname resolution is performed by the WireGuard management unit, outside the module's strict DNS guarantee."
+    ]
+    ++ lib.optionals (wgExists && !(wgConfig.allowedIPsAsRoutes or true)) [
+      "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
+    ]
+  ) enabledNamespaceNames;
 in
 {
   imports = [
@@ -708,7 +787,7 @@ in
     ++ serviceAssertions
     ++ socketAssertions;
 
-    warnings = rootWarnings;
+    warnings = rootWarnings ++ namespaceWarnings;
 
     systemd.services = mkMerge [
       namespaceUnits

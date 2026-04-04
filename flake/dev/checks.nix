@@ -73,6 +73,12 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-strict-dns-direct-port53-block.nix { inherit pkgs; }
       );
 
+      checks.vpn-confinement-v2-wireguard-hostname-endpoint-refresh = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-wireguard-hostname-endpoint-refresh.nix {
+          inherit pkgs;
+        }
+      );
+
       checks.vpn-confinement-v2-restrict-bind-deny-any = pkgs.testers.runNixOSTest (
         import ../../tests/nixos/vpn-confinement-v2-restrict-bind-deny-any.nix { inherit pkgs; }
       );
@@ -124,6 +130,29 @@ _: {
         pkgs.runCommand "vpn-confinement-v2-root-warning" { } ''
           if [ "${if hasWarning then "1" else "0"}" -ne 1 ]; then
             echo "expected root hardening warning for vpn-enabled service" >&2
+            exit 1
+          fi
+          touch "$out"
+        '';
+
+      checks.vpn-confinement-v2-wireguard-warnings =
+        let
+          cfg = evalNode ../../tests/nixos/vpn-confinement-v2-wireguard-warnings.nix;
+          inherit (cfg) warnings;
+          hasHostnameWarning = builtins.any (
+            warning: builtins.match ".*uses hostname WireGuard peer endpoints.*" warning != null
+          ) warnings;
+          hasRouteWarning = builtins.any (
+            warning: builtins.match ".*allowedIPsAsRoutes = false.*" warning != null
+          ) warnings;
+        in
+        pkgs.runCommand "vpn-confinement-v2-wireguard-warnings" { } ''
+          if [ "${if hasHostnameWarning then "1" else "0"}" -ne 1 ]; then
+            echo "expected hostname endpoint warning" >&2
+            exit 1
+          fi
+          if [ "${if hasRouteWarning then "1" else "0"}" -ne 1 ]; then
+            echo "expected allowedIPsAsRoutes warning" >&2
             exit 1
           fi
           touch "$out"
