@@ -78,24 +78,45 @@ let
   mkEgressRules =
     ns:
     let
-      extraTcp = unique ns.egress.extraTcp;
-      extraUdp = unique ns.egress.extraUdp;
-      extraCidrs = unique ns.egress.extraCidrs;
-      cidrCond = optionalString (extraCidrs != [ ]) "ip daddr ${vpnLib.renderPortSet extraCidrs}";
+      allowedTcp = unique ns.egress.allowedTcpPorts;
+      allowedUdp = unique ns.egress.allowedUdpPorts;
+      allowedCidrs = unique ns.egress.allowedCidrs;
+      cidrs = vpnLib.splitCidrs allowedCidrs;
+
+      mkPortRule =
+        proto: ports:
+        let
+          portSet = vpnLib.renderPortSet ports;
+          defaultRule = "oifname \"${ns.wireguard.interface}\" ${proto} dport ${portSet} accept";
+          ipv4Rule = "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet cidrs.ipv4} ${proto} dport ${portSet} accept";
+          ipv6Rule = "oifname \"${ns.wireguard.interface}\" ip6 daddr ${vpnLib.renderPortSet cidrs.ipv6} ${proto} dport ${portSet} accept";
+        in
+        if ports == [ ] then
+          ""
+        else if allowedCidrs == [ ] then
+          defaultRule
+        else
+          concatMapStringsSep "\n" (rule: rule) (
+            lib.optionals (cidrs.ipv4 != [ ]) [ ipv4Rule ] ++ lib.optionals (cidrs.ipv6 != [ ]) [ ipv6Rule ]
+          );
+
+      cidrOnlyRules =
+        if allowedCidrs == [ ] || allowedTcp != [ ] || allowedUdp != [ ] then
+          ""
+        else
+          concatMapStringsSep "\n" (rule: rule) (
+            lib.optionals (cidrs.ipv4 != [ ]) [
+              "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet cidrs.ipv4} accept"
+            ]
+            ++ lib.optionals (cidrs.ipv6 != [ ]) [
+              "oifname \"${ns.wireguard.interface}\" ip6 daddr ${vpnLib.renderPortSet cidrs.ipv6} accept"
+            ]
+          );
     in
     ''
-      ${optionalString (extraTcp != [ ])
-        "oifname \"${ns.wireguard.interface}\" ${cidrCond} tcp dport ${vpnLib.renderPortSet extraTcp} accept"
-      }
-      ${optionalString (extraUdp != [ ])
-        "oifname \"${ns.wireguard.interface}\" ${cidrCond} udp dport ${vpnLib.renderPortSet extraUdp} accept"
-      }
-      ${optionalString (
-        extraCidrs != [ ] && extraTcp == [ ] && extraUdp == [ ]
-      ) "oifname \"${ns.wireguard.interface}\" ip daddr ${vpnLib.renderPortSet extraCidrs} accept"}
-      ${optionalString (ns.egress.rawRules != [ ]) (
-        concatMapStringsSep "\n" (rule: rule) ns.egress.rawRules
-      )}
+      ${mkPortRule "tcp" allowedTcp}
+      ${mkPortRule "udp" allowedUdp}
+      ${cidrOnlyRules}
     '';
 
   mkNftRules =
@@ -137,7 +158,9 @@ let
           ${optionalString strictDns (mkDnsOutputRules ns)}
           ${optionalString strictDns (mkDnsBlockedPortRules ns)}
           ${mkEgressRules ns}
-          oifname "${ns.wireguard.interface}" accept
+          ${optionalString (
+            ns.egress.mode == "allowAllTunnel"
+          ) "oifname \"${ns.wireguard.interface}\" accept"}
         }
       }
     '';
@@ -243,6 +266,7 @@ let
       ns = enabledNamespaces.${nsName};
       wg = ns.wireguard.interface;
       dnsSplit = vpnLib.splitDns ns.dns.servers;
+      cidrSplit = vpnLib.splitCidrs ns.egress.allowedCidrs;
       withHostLink = hostLinkEnabled nsName ns;
     in
     [
@@ -259,8 +283,34 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.dns.servers cannot include IPv6 when ipv6.mode = \"disable\".";
       }
       {
+        assertion = vpnLib.isValidInterfaceName wg;
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.interface must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]).";
+      }
+      {
+        assertion = builtins.all vpnLib.isLiteralCidr ns.egress.allowedCidrs;
+        message = "services.vpnConfinement.namespaces.${nsName}.egress.allowedCidrs must contain literal IPv4/IPv6 CIDRs or IPs only.";
+      }
+      {
+        assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
+        message = "services.vpnConfinement.namespaces.${nsName}.egress.allowedCidrs cannot include IPv6 CIDRs when ipv6.mode = \"disable\".";
+      }
+      {
         assertion = builtins.hasAttr wg config.networking.wireguard.interfaces;
         message = "WireGuard interface ${wg} must exist under networking.wireguard.interfaces.";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || (
+            let
+              wgConfig = config.networking.wireguard.interfaces.${wg};
+              endpoints = builtins.filter (endpoint: endpoint != null) (
+                map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
+              );
+            in
+            all vpnLib.isLiteralEndpoint endpoints
+          );
+        message = "services.vpnConfinement.namespaces.${nsName} requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to be a literal IP endpoint (IPv4:port or [IPv6]:port). Hostnames are not supported.";
       }
       {
         assertion =
@@ -275,6 +325,14 @@ let
             builtins.any vpnLib.isLiteralIpv6 literals
           );
         message = "services.vpnConfinement.namespaces.${nsName}.ipv6.mode = \"tunnel\" requires IPv6 routes on networking.wireguard.interfaces.${wg}.";
+      }
+      {
+        assertion = !withHostLink || vpnLib.isValidInterfaceName ns.hostLink.hostIf;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostIf must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]) when host link is enabled.";
+      }
+      {
+        assertion = !withHostLink || vpnLib.isValidInterfaceName ns.hostLink.nsIf;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsIf must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]) when host link is enabled.";
       }
       {
         assertion = !withHostLink || vpnLib.isLiteralIpv4 ns.hostLink.hostAddressIPv4;
@@ -324,6 +382,19 @@ let
       message = "vpn-confinement does not support socket-activated units: ${serviceName}.service is referenced by a .socket unit.";
     }
   ]) vpnEnabledServiceNames;
+
+  rootWarnings = builtins.concatMap (
+    serviceName:
+    let
+      serviceConfig = config.systemd.services.${serviceName}.serviceConfig or { };
+      user = serviceConfig.User or null;
+      dynamicUser = serviceConfig.DynamicUser or false;
+      rootLike = user == null || user == "" || user == "root" || user == "0";
+    in
+    lib.optionals (rootLike && !dynamicUser) [
+      "systemd.services.${serviceName} has vpn.enable = true but still runs as root. Prefer serviceConfig.DynamicUser = true or set a dedicated non-root serviceConfig.User."
+    ]
+  ) vpnEnabledServiceNames;
 in
 {
   imports = [ ./service-extension.nix ];
@@ -430,22 +501,25 @@ in
               };
 
               egress = {
-                extraTcp = mkOption {
+                mode = mkOption {
+                  type = types.enum [
+                    "allowAllTunnel"
+                    "allowList"
+                  ];
+                  default = "allowAllTunnel";
+                };
+
+                allowedTcpPorts = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
                 };
 
-                extraUdp = mkOption {
+                allowedUdpPorts = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
                 };
 
-                extraCidrs = mkOption {
-                  type = types.listOf types.str;
-                  default = [ ];
-                };
-
-                rawRules = mkOption {
+                allowedCidrs = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
                 };
@@ -517,6 +591,8 @@ in
     ++ namespaceAssertions
     ++ serviceAssertions
     ++ socketAssertions;
+
+    warnings = rootWarnings;
 
     systemd.services = namespaceUnits;
     networking.wireguard.interfaces = wireguardAssignments;

@@ -21,11 +21,13 @@
 - Network namespace isolation per confinement domain.
 - One namespace equals one trust domain and one firewall/DNS policy surface.
 - Namespace-local nftables output default drop.
-- WireGuard-only egress allowlist.
+- WireGuard egress policy with explicit namespace mode (`allowAllTunnel` or
+  `allowList`).
 - Strict DNS blocked-port policy (`53`, `853`, `5353`, `5355`) by default.
 - IPv6 fail-closed namespace default unless explicitly tunneled.
 - Resolver and nsswitch bind mounts in strict mode, with inaccessible host
   resolver helper paths.
+- WireGuard peer endpoints are required to be literal IP endpoints.
 
 ## Operational constraints
 
@@ -34,3 +36,5 @@
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.
 - Applications that query host resolver APIs directly over D-Bus are not fully
   covered unless bus access is also constrained.
+- DoH/DoQ over generic egress is outside strict DNS guarantees unless
+  destination allowlisting is configured.

@@ -89,23 +89,6 @@ in
               ];
               default = "baseline";
             };
-
-            ingress = {
-              fromHost.tcp = mkOption {
-                type = types.listOf types.port;
-                default = [ ];
-              };
-
-              fromTunnel.tcp = mkOption {
-                type = types.listOf types.port;
-                default = [ ];
-              };
-
-              fromTunnel.udp = mkOption {
-                type = types.listOf types.port;
-                default = [ ];
-              };
-            };
           };
 
           config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
@@ -115,6 +98,13 @@ in
               serviceConfig = hardeningBaseline // {
                 NetworkNamespacePath = "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
+                RestrictNetworkInterfaces = mkDefault (
+                  [
+                    "lo"
+                    wgIf
+                  ]
+                  ++ lib.optionals withHostLink [ ns.hostLink.nsIf ]
+                );
               };
             }
             (mkIf (config.vpn.dependsOnTunnel && nsExists) {
@@ -135,17 +125,7 @@ in
                 ];
               };
             })
-            (mkIf (config.vpn.hardeningProfile == "strict") {
-              serviceConfig = hardeningStrict // {
-                RestrictNetworkInterfaces = mkDefault (
-                  [
-                    "lo"
-                    wgIf
-                  ]
-                  ++ lib.optionals withHostLink [ ns.hostLink.nsIf ]
-                );
-              };
-            })
+            (mkIf (config.vpn.hardeningProfile == "strict") { serviceConfig = hardeningStrict; })
           ]);
         }
       )

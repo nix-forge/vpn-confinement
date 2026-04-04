@@ -52,6 +52,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn.enable = true;
@@ -71,5 +72,7 @@
     machine.fail("ip netns exec vpnapps nft list table inet vpnc | grep -q 'ip6 daddr'")
     machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.all.disable_ipv6 | grep -q '^1$'")
     machine.succeed("ip netns exec vpnapps sysctl -n net.ipv6.conf.default.disable_ipv6 | grep -q '^1$'")
+    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )lo( |$)'")
+    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-ipv6-probe.service | grep -Eq '(^| )wg0( |$)'")
   '';
 }

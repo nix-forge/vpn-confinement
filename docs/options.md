@@ -20,10 +20,10 @@
 - `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
 - `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.tcp`
 - `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.udp`
-- `services.vpnConfinement.namespaces.<name>.egress.extraTcp`
-- `services.vpnConfinement.namespaces.<name>.egress.extraUdp`
-- `services.vpnConfinement.namespaces.<name>.egress.extraCidrs`
-- `services.vpnConfinement.namespaces.<name>.egress.rawRules`
+- `services.vpnConfinement.namespaces.<name>.egress.mode`
+- `services.vpnConfinement.namespaces.<name>.egress.allowedTcpPorts`
+- `services.vpnConfinement.namespaces.<name>.egress.allowedUdpPorts`
+- `services.vpnConfinement.namespaces.<name>.egress.allowedCidrs`
 
 ## Per service
 
@@ -31,9 +31,6 @@
 - `systemd.services.<name>.vpn.namespace`
 - `systemd.services.<name>.vpn.dependsOnTunnel`
 - `systemd.services.<name>.vpn.hardeningProfile`
-- `systemd.services.<name>.vpn.ingress.fromHost.tcp`
-- `systemd.services.<name>.vpn.ingress.fromTunnel.tcp`
-- `systemd.services.<name>.vpn.ingress.fromTunnel.udp`
 
 ## Behavior notes
 
@@ -41,6 +38,10 @@
 - `services.vpnConfinement.targetServices` was removed in v2.
 - DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
 - `dns.mode` values are `strict` or `relaxed`.
+- `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
+- `egress.mode = "allowList"` allows only configured `allowed*` rules.
+- VPN-enabled services running as root emit a warning unless
+  `DynamicUser = true` or non-root `User` is set.
 - Namespace is the trust boundary. Services in one namespace share firewall and
   DNS policy.
 - Socket-activated services are not supported.

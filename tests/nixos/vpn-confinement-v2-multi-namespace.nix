@@ -83,6 +83,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn = {
@@ -95,6 +96,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn = {

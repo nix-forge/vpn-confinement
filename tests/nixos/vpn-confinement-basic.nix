@@ -54,6 +54,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn.enable = true;
@@ -83,7 +84,11 @@
     machine.succeed("ip netns exec vpnapps nft list table inet vpnc | grep -q 'tcp dport { 53, 853, 5353, 5355 } drop'")
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -q '/etc/resolv.conf'")
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -q '/etc/nsswitch.conf'")
+    machine.succeed("grep -q '^hosts: files myhostname dns$' /run/vpn-confinement/vpnapps/nsswitch.conf")
     machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/systemd/resolve'")
+    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )lo( |$)'")
+    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )wg0( |$)'")
+    machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )ve-vpnapps-ns( |$)'")
     machine.succeed("systemctl stop netns-echo.service")
     machine.wait_until_succeeds("! ip netns list | grep -q '^vpnapps\\b'")
   '';

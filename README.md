@@ -6,7 +6,7 @@ network namespace.
 ## Features
 
 - Per-service opt-in via `systemd.services.<name>.vpn.enable`
-- One authoritative service API under `systemd.services.<name>.vpn.*`
+- Service-level API for namespace attachment and hardening only
 - Namespace-scoped policy (`one namespace = one trust domain`)
 - Native NixOS WireGuard integration via `networking.wireguard.interfaces`
 - Namespace-local nftables kill-switch
@@ -35,6 +35,7 @@ network namespace.
         servers = [ "10.64.0.1" ];
       };
       ipv6.mode = "disable";
+      egress.mode = "allowAllTunnel";
     };
   };
 
@@ -58,7 +59,6 @@ network namespace.
 
 - Per-service config lives at `systemd.services.<name>.vpn.*`:
   - `namespace`, `dependsOnTunnel`, `hardeningProfile`
-  - `ingress.fromHost.tcp`, `ingress.fromTunnel.tcp`, `ingress.fromTunnel.udp`
 - Namespace defaults live at `services.vpnConfinement.namespaces.<name>.*`,
   including:
   - `wireguard.interface` and `wireguard.socketNamespace`
@@ -66,13 +66,18 @@ network namespace.
   - `dns.blockedPorts = [ 53 853 5353 5355 ]` (when mode is `strict`)
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
   - `ipv6.mode = "disable" | "tunnel"` (default: `disable`)
-  - `egress.extraTcp`, `egress.extraUdp`, `egress.extraCidrs`, `egress.rawRules`
+  - `egress.mode = "allowAllTunnel" | "allowList"`
+  - `egress.allowedTcpPorts`, `egress.allowedUdpPorts`, `egress.allowedCidrs`
 - A service is confined when `systemd.services.<name>.vpn.enable = true`; no
   global service target list exists.
 - DNS and firewall policy are namespace-wide. If two services need different
   leak rules, put them in different namespaces.
-- Strict DNS also binds namespace-local `nsswitch.conf` with `hosts: files dns`
-  and blocks host resolver helper paths.
+- Strict DNS also binds namespace-local `nsswitch.conf` with
+  `hosts: files myhostname dns` and blocks host resolver helper paths.
+- `networking.wireguard.interfaces.<if>.peers.*.endpoint` must use literal IP
+  endpoints (`IPv4:port` or `[IPv6]:port`); hostname endpoints are rejected.
+- The module warns when a vpn-enabled service still runs as root without
+  `DynamicUser = true` or an explicit non-root `User`.
 - Only `systemd.services` units are supported; socket-activated services are
   rejected.
 
@@ -80,8 +85,13 @@ network namespace.
 
 - Strict DNS protects common resolver paths (`resolv.conf`, `nsswitch`, and
   `/run/systemd/resolve` helpers) within confined services.
+- Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
+  configured resolver paths when `dns.mode = "strict"`.
 - Applications that directly call host resolver APIs over D-Bus are outside this
   guarantee unless the service also blocks system bus access.
+- DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
+  preventable without destination allowlisting (for example
+  `egress.mode = "allowList"` with constrained `allowedCidrs`).
 
 ## License
 

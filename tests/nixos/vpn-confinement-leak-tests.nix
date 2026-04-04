@@ -52,6 +52,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "oneshot";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/true";
       };
       vpn.enable = true;
@@ -61,6 +62,7 @@
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
+        DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn.enable = true;
