@@ -45,10 +45,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
   networking.wireguard.interfaces.wg0 = {
     privateKeyFile = "/run/keys/wg.key";
     ips = [ "10.0.0.2/32" ];
+    dynamicEndpointRefreshSeconds = 300;
     peers = [
       {
         publicKey = "...";
-        endpoint = "198.51.100.1:51820";
+        endpoint = "vpn.example.com:51820";
         allowedIPs = [ "0.0.0.0/0" ];
       }
     ];
@@ -117,10 +118,11 @@ than policy-routing-only setups for the "only these services use VPN" case.
   - `wireguard.socketNamespace = null | <name>`
   - `wireguard.dynamicEndpointRefreshSeconds = <int>` (default `0`)
   - `dns.mode = "strict" | "relaxed"`
-  - `dns.blockSystemBus = false` by default
-  - `dns.blockNscd = false` by default
+  - `dns.compatibilityMode = false` by default
   - strict DNS blocks `53`, `853`, `5353`, and `5355`
   - `hostLink.enable = false` by default (`lo + wg` only unless needed)
+  - `hostLink.subnetIPv4 = null | "x.x.x.x/30"` (`null` auto-allocates from
+    `169.254.0.0/16`)
   - `ipv6.mode = "disable" | "tunnel"` (default: `disable`)
   - `egress.mode = "allowAllTunnel" | "allowList"`
   - `egress.allowedTcpPorts`, `egress.allowedUdpPorts`, `egress.allowedCidrs`
@@ -130,6 +132,8 @@ than policy-routing-only setups for the "only these services use VPN" case.
   leak rules, put them in different namespaces.
 - Strict DNS also binds namespace-local `nsswitch.conf` with
   `hosts: files myhostname dns` and blocks host resolver helper paths.
+- Namespace resolver config is written to `/etc/netns/<name>/resolv.conf` and
+  `/etc/netns/<name>/nsswitch.conf` for `ip netns exec` parity.
 - `networking.wireguard.interfaces.<if>.peers.*.endpoint` may use literal IP
   endpoints (`IPv4:port` or `[IPv6]:port`) or hostname endpoints
   (`hostname:port`). Hostname endpoints require refresh
@@ -161,12 +165,13 @@ than policy-routing-only setups for the "only these services use VPN" case.
   `/run/systemd/resolve` helpers) within confined services.
 - Strict DNS blocks classic DNS-like ports (`53`, `853`, `5353`, `5355`) except
   configured resolver paths when `dns.mode = "strict"`.
-- For maximal DNS hardening, set `dns.blockSystemBus = true` to block access to
-  the system D-Bus socket from confined services.
+- Strict mode defaults to maximal helper blocking
+  (`dns.compatibilityMode = false`), including `/run/nscd` and system D-Bus
+  sockets for confined services.
 - Applications that directly call host resolver APIs over D-Bus are outside this
-  guarantee unless the service also blocks system bus access.
-- `dns.blockNscd = true` can further restrict resolver helper paths, but may
-  reduce compatibility for workloads expecting NSS daemon access.
+  guarantee when `dns.compatibilityMode = true`.
+- Set `dns.compatibilityMode = true` only for workloads that need host resolver
+  helper access and accept the weaker DNS containment.
 - DNS-over-HTTPS/DNS-over-QUIC over arbitrary destinations is not fully
   preventable without destination allowlisting (for example
   `egress.mode = "allowList"` with constrained `allowedCidrs`).

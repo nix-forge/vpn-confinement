@@ -63,8 +63,8 @@ _: {
         import ../../tests/nixos/vpn-confinement-v2-dns-system-bus-block.nix { inherit pkgs; }
       );
 
-      checks.vpn-confinement-v2-dns-nscd-toggle = pkgs.testers.runNixOSTest (
-        import ../../tests/nixos/vpn-confinement-v2-dns-nscd-toggle.nix { inherit pkgs; }
+      checks.vpn-confinement-v2-dns-compatibility-mode = pkgs.testers.runNixOSTest (
+        import ../../tests/nixos/vpn-confinement-v2-dns-compatibility-mode.nix { inherit pkgs; }
       );
 
       checks.vpn-confinement-v2-host-socket-vpn-service-pattern = pkgs.testers.runNixOSTest (
@@ -88,6 +88,14 @@ _: {
       checks.vpn-confinement-v2-cidr-prefix-reject = mkEvalRejectCheck "vpn-confinement-v2-cidr-prefix-reject" ../../tests/nixos/vpn-confinement-v2-cidr-prefix-reject.nix;
 
       checks.vpn-confinement-v2-interface-name-validation-reject = mkEvalRejectCheck "vpn-confinement-v2-interface-name-validation-reject" ../../tests/nixos/vpn-confinement-v2-interface-name-validation-reject.nix;
+
+      checks.vpn-confinement-v2-hostlink-subnet-prefix-reject = mkEvalRejectCheck "vpn-confinement-v2-hostlink-subnet-prefix-reject" ../../tests/nixos/vpn-confinement-v2-hostlink-subnet-prefix-reject.nix;
+
+      checks.vpn-confinement-v2-hostlink-subnet-collision-reject = mkEvalRejectCheck "vpn-confinement-v2-hostlink-subnet-collision-reject" ../../tests/nixos/vpn-confinement-v2-hostlink-subnet-collision-reject.nix;
+
+      checks.vpn-confinement-v2-wireguard-namespace-ownership-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-namespace-ownership-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-namespace-ownership-reject.nix;
+
+      checks.vpn-confinement-v2-wireguard-socket-namespace-ownership-reject = mkEvalRejectCheck "vpn-confinement-v2-wireguard-socket-namespace-ownership-reject" ../../tests/nixos/vpn-confinement-v2-wireguard-socket-namespace-ownership-reject.nix;
 
       checks.vpn-confinement-v2-api-removal-reject = mkEvalRejectCheck "vpn-confinement-v2-api-removal-reject" ../../tests/nixos/vpn-confinement-v2-api-removal-reject.nix;
 

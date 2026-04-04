@@ -13,8 +13,7 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.hostAddressIPv4 = "10.231.2.1";
-        hostLink.nsAddressIPv4 = "10.231.2.2";
+        hostLink.subnetIPv4 = "10.231.2.0/30";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];

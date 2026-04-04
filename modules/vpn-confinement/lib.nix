@@ -3,6 +3,7 @@ let
   inherit (lib)
     all
     concatMapStringsSep
+    foldl'
     hasInfix
     length
     optionalString
@@ -36,6 +37,61 @@ let
       null
     else
       parsed.value;
+
+  intMod = a: b: a - (builtins.div a b) * b;
+
+  stringChars =
+    value: builtins.genList (idx: builtins.substring idx 1 value) (builtins.stringLength value);
+
+  hexDigitValue =
+    digit:
+    if digit == "0" then
+      0
+    else if digit == "1" then
+      1
+    else if digit == "2" then
+      2
+    else if digit == "3" then
+      3
+    else if digit == "4" then
+      4
+    else if digit == "5" then
+      5
+    else if digit == "6" then
+      6
+    else if digit == "7" then
+      7
+    else if digit == "8" then
+      8
+    else if digit == "9" then
+      9
+    else if digit == "a" || digit == "A" then
+      10
+    else if digit == "b" || digit == "B" then
+      11
+    else if digit == "c" || digit == "C" then
+      12
+    else if digit == "d" || digit == "D" then
+      13
+    else if digit == "e" || digit == "E" then
+      14
+    else if digit == "f" || digit == "F" then
+      15
+    else
+      null;
+
+  hexToInt =
+    value:
+    foldl' (
+      acc: digit:
+      if acc == null then
+        null
+      else
+        let
+          parsed = hexDigitValue digit;
+        in
+        if parsed == null then null else acc * 16 + parsed
+    ) 0 (stringChars value);
 
   isValidHextet = value: builtins.match "^[0-9A-Fa-f]{1,4}$" value != null;
 
@@ -142,14 +198,19 @@ let
     else
       null;
 
-  isLiteralIpv4Cidr =
+  parseLiteralIpv4Cidr =
     value:
     let
       parsed = parseCidr value;
     in
-    parsed != null
-    && isLiteralIpv4 parsed.address
-    && ((!parsed.hasPrefix) || (parsed.prefix >= 0 && parsed.prefix <= 32));
+    if parsed == null || !isLiteralIpv4 parsed.address then null else parsed;
+
+  isLiteralIpv4Cidr =
+    value:
+    let
+      parsed = parseLiteralIpv4Cidr value;
+    in
+    parsed != null && ((!parsed.hasPrefix) || (parsed.prefix >= 0 && parsed.prefix <= 32));
 
   isLiteralIpv6Cidr =
     value:
@@ -234,6 +295,56 @@ let
     builtins.stringLength value >= 1
     && builtins.stringLength value <= 15
     && builtins.match "^[A-Za-z0-9_.-]+$" value != null;
+
+  isLiteralIpv4Slash30 =
+    value:
+    let
+      parsed = parseLiteralIpv4Cidr value;
+      octets = if parsed == null then [ ] else splitString "." parsed.address;
+      lastOctet = if length octets == 4 then parseNumber (builtins.elemAt octets 3) else null;
+    in
+    parsed != null
+    && parsed.hasPrefix
+    && parsed.prefix == 30
+    && lastOctet != null
+    && lastOctet <= 252
+    && intMod lastOctet 4 == 0;
+
+  deriveHostLinkPair =
+    subnet:
+    let
+      parsed = parseLiteralIpv4Cidr subnet;
+      octets = if parsed == null then [ ] else splitString "." parsed.address;
+      lastOctet = if length octets == 4 then parseNumber (builtins.elemAt octets 3) else null;
+      prefixValid = parsed != null && parsed.hasPrefix && parsed.prefix == 30;
+      baseValid = lastOctet != null && lastOctet <= 252 && intMod lastOctet 4 == 0;
+      prefix = concatMapStringsSep "." (idx: builtins.elemAt octets idx) [
+        0
+        1
+        2
+      ];
+      hostOctet = if lastOctet == null then null else lastOctet + 1;
+      nsOctet = if lastOctet == null then null else lastOctet + 2;
+    in
+    if !prefixValid || !baseValid then
+      null
+    else
+      {
+        subnetIPv4 = "${parsed.address}/${toString parsed.prefix}";
+        hostAddressIPv4 = "${prefix}.${toString hostOctet}";
+        nsAddressIPv4 = "${prefix}.${toString nsOctet}";
+      };
+
+  hostLinkSubnetFromNamespace =
+    namespaceName:
+    let
+      digest = builtins.hashString "sha256" namespaceName;
+      idx = intMod (hexToInt (builtins.substring 0 8 digest)) 16384;
+      base = idx * 4;
+      third = builtins.div base 256;
+      fourth = intMod base 256;
+    in
+    "169.254.${toString third}.${toString fourth}/30";
 in
 {
   uniquePorts = unique;
@@ -245,6 +356,8 @@ in
   isLiteralIp = value: isLiteralIpv4 value || isLiteralIpv6 value;
 
   inherit isLiteralIpv4;
+
+  inherit isLiteralIpv4Slash30;
 
   inherit isLiteralIpv6;
 
@@ -281,6 +394,10 @@ in
   inherit isSupportedEndpoint;
 
   endpointIsHostname = isHostnameEndpoint;
+
+  inherit deriveHostLinkPair;
+
+  inherit hostLinkSubnetFromNamespace;
 
   inherit isValidInterfaceName;
 

@@ -17,7 +17,6 @@ _: {
           dns = {
             mode = "strict";
             servers = [ "10.64.0.1" ];
-            blockSystemBus = true;
           };
         };
       };

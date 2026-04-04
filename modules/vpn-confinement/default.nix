@@ -71,6 +71,23 @@ let
 
   hostLinkEnabled = _nsName: ns: ns.hostLink.enable;
 
+  effectiveHostLink = builtins.mapAttrs (
+    nsName: ns:
+    let
+      subnet =
+        if ns.hostLink.subnetIPv4 != null then
+          ns.hostLink.subnetIPv4
+        else
+          vpnLib.hostLinkSubnetFromNamespace nsName;
+      pair = vpnLib.deriveHostLinkPair subnet;
+    in
+    {
+      subnetIPv4 = subnet;
+      hostAddressIPv4 = if pair == null then null else pair.hostAddressIPv4;
+      nsAddressIPv4 = if pair == null then null else pair.nsAddressIPv4;
+    }
+  ) enabledNamespaces;
+
   blockedDnsPorts = [
     53
     853
@@ -164,7 +181,9 @@ let
           ct state established,related accept
           ${optionalString (ns.ipv6.mode == "disable") "meta nfproto ipv6 drop"}
           ${optionalString (withHostLink && hostIngressTcp != [ ])
-            "iifname \"${ns.hostLink.nsIf}\" ip saddr ${ns.hostLink.hostAddressIPv4} tcp dport ${vpnLib.renderPortSet hostIngressTcp} accept"
+            "iifname \"${ns.hostLink.nsIf}\" ip saddr ${
+              effectiveHostLink.${nsName}.hostAddressIPv4
+            } tcp dport ${vpnLib.renderPortSet hostIngressTcp} accept"
           }
           ${optionalString (
             inboundTcp != [ ]
@@ -230,9 +249,13 @@ let
 
           ${pkgs.iproute2}/bin/ip link add ${ns.hostLink.hostIf} type veth peer name ${ns.hostLink.nsIf}
           ${pkgs.iproute2}/bin/ip link set ${ns.hostLink.nsIf} netns ${nsName}
-          ${pkgs.iproute2}/bin/ip addr replace ${ns.hostLink.hostAddressIPv4}/30 dev ${ns.hostLink.hostIf}
+          ${pkgs.iproute2}/bin/ip addr replace ${
+            effectiveHostLink.${nsName}.hostAddressIPv4
+          }/30 dev ${ns.hostLink.hostIf}
           ${pkgs.iproute2}/bin/ip link set ${ns.hostLink.hostIf} up
-          ${pkgs.iproute2}/bin/ip -n ${nsName} addr replace ${ns.hostLink.nsAddressIPv4}/30 dev ${ns.hostLink.nsIf}
+          ${pkgs.iproute2}/bin/ip -n ${nsName} addr replace ${
+            effectiveHostLink.${nsName}.nsAddressIPv4
+          }/30 dev ${ns.hostLink.nsIf}
           ${pkgs.iproute2}/bin/ip -n ${nsName} link set ${ns.hostLink.nsIf} up
         ''}
 
@@ -247,6 +270,7 @@ let
 
         ${pkgs.coreutils}/bin/mkdir -p /etc/netns/${nsName}
         ${pkgs.coreutils}/bin/install -m 0444 ${resolvText} /etc/netns/${nsName}/resolv.conf
+        ${pkgs.coreutils}/bin/install -m 0444 ${nsswitchText} /etc/netns/${nsName}/nsswitch.conf
 
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft delete table inet vpnc >/dev/null 2>&1 || true
         ${pkgs.iproute2}/bin/ip netns exec ${nsName} ${pkgs.nftables}/bin/nft -f ${nftRules}
@@ -269,8 +293,8 @@ let
     nsName: ns:
     nameValuePair ns.wireguard.interface (
       {
-        interfaceNamespace = nsName;
-        dynamicEndpointRefreshSeconds = lib.mkDefault ns.wireguard.dynamicEndpointRefreshSeconds;
+        interfaceNamespace = lib.mkDefault nsName;
+        inherit (ns.wireguard) dynamicEndpointRefreshSeconds;
       }
       // lib.optionalAttrs (ns.wireguard.socketNamespace != null) {
         socketNamespace = lib.mkDefault ns.wireguard.socketNamespace;
@@ -299,8 +323,7 @@ let
 
   hostIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.hostIf) activeHostLinks;
   nsIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.nsIf) activeHostLinks;
-  hostAddrs = map (nsName: enabledNamespaces.${nsName}.hostLink.hostAddressIPv4) activeHostLinks;
-  nsAddrs = map (nsName: enabledNamespaces.${nsName}.hostLink.nsAddressIPv4) activeHostLinks;
+  hostLinkSubnets = map (nsName: effectiveHostLink.${nsName}.subnetIPv4) activeHostLinks;
 
   namespaceAssertions = builtins.concatMap (
     nsName:
@@ -343,6 +366,24 @@ let
       {
         assertion = builtins.hasAttr wg config.networking.wireguard.interfaces;
         message = "WireGuard interface ${wg} must exist under networking.wireguard.interfaces.";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || (config.networking.wireguard.interfaces.${wg}.interfaceNamespace or null) == nsName;
+        message = "services.vpnConfinement owns networking.wireguard.interfaces.${wg}.interfaceNamespace; set it to ${nsName} (or leave unset).";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || (
+            let
+              expectedSocketNamespace = ns.wireguard.socketNamespace;
+              actualSocketNamespace = config.networking.wireguard.interfaces.${wg}.socketNamespace or null;
+            in
+            expectedSocketNamespace == actualSocketNamespace
+          );
+        message = "services.vpnConfinement owns networking.wireguard.interfaces.${wg}.socketNamespace; set it to services.vpnConfinement.namespaces.${nsName}.wireguard.socketNamespace (or leave unset).";
       }
       {
         assertion =
@@ -405,12 +446,8 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsIf must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]) when host link is enabled.";
       }
       {
-        assertion = !withHostLink || vpnLib.isLiteralIpv4 ns.hostLink.hostAddressIPv4;
-        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostAddressIPv4 must be a literal IPv4 address when host link is enabled.";
-      }
-      {
-        assertion = !withHostLink || vpnLib.isLiteralIpv4 ns.hostLink.nsAddressIPv4;
-        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsAddressIPv4 must be a literal IPv4 address when host link is enabled.";
+        assertion = !withHostLink || vpnLib.isLiteralIpv4Slash30 effectiveHostLink.${nsName}.subnetIPv4;
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.subnetIPv4 must be a valid IPv4 /30 network base when host link is enabled.";
       }
     ]
   ) enabledNamespaceNames;
@@ -541,12 +578,7 @@ in
                   default = [ ];
                 };
 
-                blockNscd = mkOption {
-                  type = types.bool;
-                  default = false;
-                };
-
-                blockSystemBus = mkOption {
+                compatibilityMode = mkOption {
                   type = types.bool;
                   default = false;
                 };
@@ -618,14 +650,9 @@ in
                   default = "ve-${name}-ns";
                 };
 
-                hostAddressIPv4 = mkOption {
-                  type = types.str;
-                  default = "10.231.0.1";
-                };
-
-                nsAddressIPv4 = mkOption {
-                  type = types.str;
-                  default = "10.231.0.2";
+                subnetIPv4 = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
                 };
               };
             };
@@ -665,12 +692,12 @@ in
         message = "Enabled host links must not reuse hostLink.nsIf.";
       }
       {
-        assertion = unique hostAddrs == hostAddrs;
-        message = "Enabled host links must not reuse hostLink.hostAddressIPv4.";
+        assertion = unique hostLinkSubnets == hostLinkSubnets;
+        message = "Enabled host links must not reuse the same effective hostLink subnet (/30).";
       }
       {
-        assertion = unique nsAddrs == nsAddrs;
-        message = "Enabled host links must not reuse hostLink.nsAddressIPv4.";
+        assertion = builtins.length activeHostLinks <= 16384;
+        message = "hostLink auto-allocation supports up to 16384 enabled host links from 169.254.0.0/16.";
       }
     ]
     ++ namespaceAssertions

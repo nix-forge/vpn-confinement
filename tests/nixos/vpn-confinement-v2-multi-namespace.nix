@@ -16,8 +16,6 @@
           enable = true;
           wireguard.interface = "wg-media";
           hostLink.enable = true;
-          hostLink.hostAddressIPv4 = "10.231.10.1";
-          hostLink.nsAddressIPv4 = "10.231.10.2";
           dns = {
             mode = "strict";
             servers = [ "10.64.0.1" ];
@@ -27,8 +25,6 @@
           enable = true;
           wireguard.interface = "wg-apps";
           hostLink.enable = true;
-          hostLink.hostAddressIPv4 = "10.231.11.1";
-          hostLink.nsAddressIPv4 = "10.231.11.2";
           dns = {
             mode = "strict";
             servers = [ "10.64.0.1" ];
@@ -117,10 +113,19 @@
     machine.wait_for_unit("vpn-confinement-netns@apps.service")
     machine.succeed("ip netns list | grep -q '^media\\b'")
     machine.succeed("ip netns list | grep -q '^apps\\b'")
-    machine.succeed("ip addr show ve-media-host | grep -q '10.231.10.1/30'")
-    machine.succeed("ip addr show ve-apps-host | grep -q '10.231.11.1/30'")
-    machine.succeed("ip netns exec media ip addr show ve-media-ns | grep -q '10.231.10.2/30'")
-    machine.succeed("ip netns exec apps ip addr show ve-apps-ns | grep -q '10.231.11.2/30'")
+    media_host_ip = machine.succeed("ip -4 -o addr show dev ve-media-host | awk '{print $4}'").strip()
+    apps_host_ip = machine.succeed("ip -4 -o addr show dev ve-apps-host | awk '{print $4}'").strip()
+    media_ns_ip = machine.succeed("ip netns exec media ip -4 -o addr show dev ve-media-ns | awk '{print $4}'").strip()
+    apps_ns_ip = machine.succeed("ip netns exec apps ip -4 -o addr show dev ve-apps-ns | awk '{print $4}'").strip()
+    assert media_host_ip.startswith("169.254.")
+    assert apps_host_ip.startswith("169.254.")
+    assert media_ns_ip.startswith("169.254.")
+    assert apps_ns_ip.startswith("169.254.")
+    assert media_host_ip.endswith("/30")
+    assert apps_host_ip.endswith("/30")
+    assert media_ns_ip.endswith("/30")
+    assert apps_ns_ip.endswith("/30")
+    assert media_host_ip != apps_host_ip
     machine.succeed("systemctl show -p NetworkNamespacePath --value media-probe.service | grep -q '^/run/netns/media$'")
     machine.succeed("systemctl show -p NetworkNamespacePath --value apps-probe.service | grep -q '^/run/netns/apps$'")
     machine.succeed("systemctl stop media-probe.service apps-probe.service")

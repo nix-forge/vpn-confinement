@@ -116,8 +116,8 @@ in
                   "/run/resolvconf"
                   "-/run/systemd/resolve"
                 ]
-                ++ lib.optionals ns.dns.blockNscd [ "/run/nscd" ]
-                ++ lib.optionals ns.dns.blockSystemBus [
+                ++ lib.optionals (!ns.dns.compatibilityMode) [ "/run/nscd" ]
+                ++ lib.optionals (!ns.dns.compatibilityMode) [
                   "/run/dbus/system_bus_socket"
                   "-/var/run/dbus/system_bus_socket"
                 ];

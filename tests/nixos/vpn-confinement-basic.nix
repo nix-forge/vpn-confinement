@@ -14,8 +14,7 @@
         enable = true;
         wireguard.interface = "wg0";
         hostLink.enable = true;
-        hostLink.hostAddressIPv4 = "10.231.0.1";
-        hostLink.nsAddressIPv4 = "10.231.0.2";
+        hostLink.subnetIPv4 = "10.231.0.0/30";
         ingress.fromHost.tcp = [ 8080 ];
         dns = {
           mode = "strict";
@@ -100,8 +99,10 @@
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -q '/etc/resolv.conf'")
     machine.succeed("systemctl show -p BindReadOnlyPaths --value netns-echo.service | grep -q '/etc/nsswitch.conf'")
     machine.succeed("grep -q '^hosts: files myhostname dns$' /run/vpn-confinement/vpnapps/nsswitch.conf")
+    machine.succeed("grep -q '^hosts: files myhostname dns$' /etc/netns/vpnapps/nsswitch.conf")
     machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/systemd/resolve'")
-    machine.fail("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/nscd'")
+    machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/nscd'")
+    machine.succeed("systemctl show -p InaccessiblePaths --value netns-echo.service | grep -q '/run/dbus/system_bus_socket'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )lo( |$)'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )wg0( |$)'")
     machine.succeed("systemctl show -p RestrictNetworkInterfaces --value netns-echo.service | grep -Eq '(^| )ve-vpnapps-ns( |$)'")

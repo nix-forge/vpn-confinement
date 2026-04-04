@@ -19,6 +19,9 @@ services.
 - Namespace-local nftables enforces deny-by-default egress and allows only
   tunnel traffic according to namespace egress mode.
 - A namespace-specific `resolv.conf` is bind-mounted into confined units.
+- Namespace resolver files are also written to `/etc/netns/<name>/resolv.conf`
+  and `/etc/netns/<name>/nsswitch.conf` for namespace-unaware tooling run via
+  `ip netns exec`.
 - DNS policy is namespace-scoped and controlled by
   `services.vpnConfinement.namespaces.<name>.dns.mode`.
 - In `dns.mode = "strict"`, DNS policy blocks non-allowlisted DNS-like traffic
@@ -26,6 +29,9 @@ services.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
+- `dns.compatibilityMode = false` (default) blocks common host resolver helpers
+  (`/run/nscd` and system D-Bus sockets) in strict mode; compatibility mode opts
+  out of those helper blocks.
 - Egress policy is explicit:
   - `egress.mode = "allowAllTunnel"`: allow all tunnel egress (after DNS
     policy).
@@ -50,7 +56,7 @@ services.
   require endpoint refresh (`dynamicEndpointRefreshSeconds > 0`) so DNS changes
   are re-resolved.
 - Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
-  system bus access is additionally restricted for that unit.
+  `dns.compatibilityMode = false` (or equivalent unit-local restrictions).
 
 ## Socket activation pattern
 

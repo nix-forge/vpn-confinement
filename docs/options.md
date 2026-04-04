@@ -11,14 +11,12 @@
 - `services.vpnConfinement.namespaces.<name>.dns.mode`
 - `services.vpnConfinement.namespaces.<name>.dns.servers`
 - `services.vpnConfinement.namespaces.<name>.dns.search`
-- `services.vpnConfinement.namespaces.<name>.dns.blockSystemBus`
-- `services.vpnConfinement.namespaces.<name>.dns.blockNscd`
+- `services.vpnConfinement.namespaces.<name>.dns.compatibilityMode`
 - `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 - `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 - `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
 - `services.vpnConfinement.namespaces.<name>.hostLink.nsIf`
-- `services.vpnConfinement.namespaces.<name>.hostLink.hostAddressIPv4`
-- `services.vpnConfinement.namespaces.<name>.hostLink.nsAddressIPv4`
+- `services.vpnConfinement.namespaces.<name>.hostLink.subnetIPv4`
 - `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
 - `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.tcp`
 - `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.udp`
@@ -44,10 +42,14 @@
 - `services.vpnConfinement.targetServices` was removed in v2.
 - DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
 - `dns.mode` values are `strict` or `relaxed`.
-- `dns.blockSystemBus = true` adds system D-Bus socket blocking in strict mode.
-- `dns.blockNscd = true` blocks `/run/nscd` in strict mode.
+- `dns.compatibilityMode = false` (default) blocks system D-Bus and `/run/nscd`
+  helper paths in strict mode.
+- `dns.compatibilityMode = true` relaxes helper-path blocking for compatibility.
 - `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
 - `egress.mode = "allowList"` allows only configured `allowed*` rules.
+- `hostLink.subnetIPv4` must be an IPv4 `/30` network base when set.
+- If `hostLink.enable = true` and `hostLink.subnetIPv4 = null`, a deterministic
+  namespace-name-hash `/30` is auto-allocated from `169.254.0.0/16`.
 - VPN-enabled services running as root emit a warning unless
   `DynamicUser = true` or non-root `User` is set.
 - Namespace is the trust boundary. Services in one namespace share firewall and
@@ -61,3 +63,7 @@
 
 - Removed `services.vpnConfinement.namespaces.<name>.dns.blockedPorts`.
 - Removed `systemd.services.<name>.vpn.dependsOnTunnel`.
+- Removed `services.vpnConfinement.namespaces.<name>.dns.blockSystemBus`.
+- Removed `services.vpnConfinement.namespaces.<name>.dns.blockNscd`.
+- Removed `services.vpnConfinement.namespaces.<name>.hostLink.hostAddressIPv4`.
+- Removed `services.vpnConfinement.namespaces.<name>.hostLink.nsAddressIPv4`.
