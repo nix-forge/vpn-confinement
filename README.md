@@ -3,7 +3,7 @@
 
   <h1>VPN Confinement</h1>
 
-  <p>
+  <div>
     <a href="https://github.com/IanHollow/vpn-confinement/issues">
       <img src="https://img.shields.io/github/issues/IanHollow/vpn-confinement?style=for-the-badge&labelColor=303446&color=f5a97f" alt="Open issues" />
     </a>
@@ -19,7 +19,7 @@
     <a href="https://nixos.org">
       <img src="https://img.shields.io/badge/NixOS-unstable-91d7e3?style=for-the-badge&labelColor=303446&logo=nixos&logoColor=white" alt="NixOS unstable" />
     </a>
-  </p>
+  </div>
 </div>
 
 Fail-closed WireGuard confinement for selected NixOS systemd services.
