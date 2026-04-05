@@ -1,4 +1,7 @@
-# Threat model
+---
+title: Threat Model
+description: Threat boundaries, guarantees, and non-goals
+---
 
 ## Assets and boundaries
 
@@ -116,3 +119,9 @@
   namespace and careful host-network interaction design.
 - Future direction (not yet implemented): optional advanced endpoint pinning
   controls under namespace WireGuard options with literal endpoint allowlists.
+
+## Related documentation
+
+- Architecture details: `architecture`.
+- Practical options guide: `options`.
+- Generated option reference: `reference/options-generated`.

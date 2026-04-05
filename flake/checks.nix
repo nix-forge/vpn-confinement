@@ -1,6 +1,6 @@
 _: {
   perSystem =
-    { pkgs, ... }:
+    { pkgs, config, ... }:
     let
       evalPkgs = import pkgs.path { inherit (pkgs.stdenv.hostPlatform) system; };
 
@@ -149,6 +149,8 @@ _: {
               && contains "wireguard-wg0.service" rootOptoutService.bindsTo
             )
             "high-assurance root opt-out evaluation did not preserve expected namespace attachment and dependency wiring";
+
+        options-doc-generation = config.packages.options-doc-markdown;
       }
       // builtins.mapAttrs mkEvalRejectCheck rejectTests
       // runtimeCheckAttrs;

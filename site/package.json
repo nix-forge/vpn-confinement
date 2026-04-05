@@ -1,0 +1,17 @@
+{
+  "name": "vpn-confinement-docs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "sync-docs": "node ./scripts/sync-root-docs.mjs",
+    "dev": "bun run sync-docs && astro dev",
+    "build": "bun run sync-docs && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.38.2",
+    "astro": "^6.0.1",
+    "sharp": "^0.34.2"
+  }
+}

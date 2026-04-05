@@ -898,6 +898,7 @@ in
       default = {
         vpnapps.enable = true;
       };
+      description = "Namespace-scoped confinement policies keyed by namespace name.";
     };
   };
 

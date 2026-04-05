@@ -1,4 +1,7 @@
-# Options
+---
+title: Options
+description: Practical option guidance and security impact
+---
 
 This document focuses on practical usage: safe defaults, when to change an
 option, and security impact.
@@ -102,11 +105,10 @@ option, and security impact.
 - vpn-enabled sockets must not set `socketConfig.NetworkNamespacePath` or
   `unitConfig.JoinsNamespaceOf`.
 
-## Notes on removed options
+## Canonical option sources
 
-- Removed `services.vpnConfinement.namespaces.<name>.dns.blockedPorts`.
-- Removed `systemd.services.<name>.vpn.dependsOnTunnel`.
-- Removed `services.vpnConfinement.namespaces.<name>.dns.blockSystemBus`.
-- Removed `services.vpnConfinement.namespaces.<name>.dns.blockNscd`.
-- Removed `services.vpnConfinement.namespaces.<name>.hostLink.hostAddressIPv4`.
-- Removed `services.vpnConfinement.namespaces.<name>.hostLink.nsAddressIPv4`.
+- Human-oriented guidance: this document.
+- Generated option reference: `reference/options-generated`.
+- Nix option declarations: `modules/vpn-confinement/default.nix`,
+  `modules/vpn-confinement/service-extension.nix`, and
+  `modules/vpn-confinement/socket-extension.nix`.

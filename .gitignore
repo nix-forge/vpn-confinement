@@ -1,2 +1,5 @@
 result
 .pre-commit-config.yaml
+site/.astro
+site/dist
+site/node_modules

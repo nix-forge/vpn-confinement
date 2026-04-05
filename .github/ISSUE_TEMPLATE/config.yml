@@ -3,3 +3,6 @@ contact_links:
   - name: Security vulnerability report
     url: https://github.com/IanHollow/vpn-confinement/security/advisories/new
     about: Please use private vulnerability reporting for security issues.
+  - name: Project documentation
+    url: https://ianhollow.github.io/vpn-confinement/
+    about: Browse usage guides, architecture notes, and generated option reference.

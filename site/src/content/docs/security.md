@@ -1,4 +1,7 @@
-# Security Policy
+---
+title: Security
+description: Supported versions and vulnerability reporting
+---
 
 ## Supported versions
 

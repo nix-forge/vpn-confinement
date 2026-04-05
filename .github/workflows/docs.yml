@@ -1,0 +1,68 @@
+name: Docs
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3.17.2
+      - name: Enable GitHub Actions Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+          use-gha-cache: true
+      - name: Generate options reference
+        run: bash scripts/generate-options-doc.sh x86_64-linux
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            site/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('site/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      - name: Install site dependencies
+        run: bun install --cwd site --frozen-lockfile
+      - name: Build docs site
+        run: bun run --cwd site build
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+  deploy:
+    name: Deploy Docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,42 +1,26 @@
 # vpn-confinement
 
+<p align="center">
+  <img src=".github/assets/logo-512.png" alt="vpn-confinement logo" width="240" />
+</p>
+
 [![CI](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml)
+[![Docs](https://github.com/IanHollow/vpn-confinement/actions/workflows/docs.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/docs.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![NixOS](https://img.shields.io/badge/NixOS-26.05%2B-5277C3?logo=nixos&logoColor=white)](https://nixos.org)
+[![Flake](https://img.shields.io/badge/Flake-enabled-5277C3?logo=nixos&logoColor=white)](flake.nix)
 
 Fail-closed WireGuard confinement for selected NixOS systemd services.
 
-It provides strong protection against classic IP/DNS leaks by combining network
-namespaces, namespace-local nftables, strict DNS controls, and lifecycle
-teardown via `BindsTo=`. It does not claim blanket prevention of arbitrary
-DoH/DoQ-style traffic unless you use destination-constrained allowlisting.
+`vpn-confinement` reduces classic IP and DNS leak paths by combining dedicated
+network namespaces, namespace-local nftables policy, strict DNS controls, and
+lifecycle teardown via `BindsTo=`. It does not claim blanket prevention of
+arbitrary DoH/DoQ over generic egress without destination-constrained
+allowlisting.
 
-## Security properties
+## Quick Start
 
-- Per-service and per-socket opt-in (`systemd.services.<name>.vpn.enable`,
-  `systemd.sockets.<name>.vpn.enable`).
-- Namespace-scoped trust boundary (`one namespace = one DNS/firewall policy`).
-- Namespace-local nftables default drop with tunnel-only policy.
-- Strict DNS mode pins resolver files and blocks classic DNS-like leak ports
-  (`53`, `853`, `5353`, `5355`).
-- IPv6 is fail closed by default.
-- Tunnel or namespace loss tears down dependent confined units.
-
-## Profiles
-
-- `balanced`: secure defaults with explicit compatibility escape hatches.
-- `highAssurance`: stricter policy with assertion-based enforcement.
-
-`highAssurance` requires:
-
-- `dns.mode = "strict"`
-- `egress.mode = "allowList"`
-- non-empty `egress.allowedCidrs` (destination-constrained egress)
-- non-root service execution by default (`DynamicUser = true` or non-root
-  `User`), unless explicitly overridden with
-  `systemd.services.<name>.vpn.allowRootInHighAssurance = true`
-- literal WireGuard endpoints (hostname endpoints rejected)
-- `allowedIPsAsRoutes = true`
-
-## Quick start
+Add the module and opt specific services into confinement:
 
 ```nix
 {
@@ -76,85 +60,59 @@ DoH/DoQ-style traffic unless you use destination-constrained allowlisting.
 }
 ```
 
-## Hardened example
+## Security Model
 
-```nix
-{
-  imports = [ vpn-confinement.nixosModules.default ];
+- Opt-in model per service or socket (`systemd.services.<name>.vpn.enable`,
+  `systemd.sockets.<name>.vpn.enable`).
+- Namespace is the trust boundary (`one namespace = one DNS/firewall policy`).
+- Namespace-local nftables uses deny-by-default tunnel policy.
+- `dns.mode = "strict"` blocks classic DNS-like leak ports (`53`, `853`, `5353`,
+  `5355`) and pins resolver config.
+- IPv6 is fail-closed by default.
+- Tunnel or namespace loss propagates teardown to dependent units.
 
-  services.vpnConfinement = {
-    enable = true;
-    namespaces.vpnapps = {
-      enable = true;
-      securityProfile = "highAssurance";
-      wireguard.interface = "wg0";
-      dns = {
-        mode = "strict";
-        servers = [ "10.64.0.1" ];
-      };
-      egress = {
-        mode = "allowList";
-        allowedTcpPorts = [ 443 80 ];
-        allowedUdpPorts = [ 123 ];
-        allowedCidrs = [
-          "1.1.1.1/32"
-          "9.9.9.9/32"
-        ];
-      };
-      ipv6.mode = "disable";
-    };
-  };
+Profiles:
 
-  systemd.services.example = {
-    serviceConfig.DynamicUser = true;
-    vpn = {
-      enable = true;
-      hardeningProfile = "strict";
-    };
-  };
-}
-```
+- `balanced`: secure defaults with explicit compatibility escape hatches.
+- `highAssurance`: stricter assertions and destination-constrained egress.
 
-## Threat coverage summary
+`highAssurance` requires:
 
-| Threat                                     | Covered when                                                  |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| Classic resolver and DNS-port leaks        | `dns.mode = "strict"`                                         |
-| DoH/DoQ to arbitrary internet destinations | only constrained by `egress.allowedCidrs` in `allowList` mode |
-| IPv6 leak paths                            | `ipv6.mode = "disable"`                                       |
-| Tunnel drop / namespace teardown           | default `BindsTo=` propagation                                |
+- `dns.mode = "strict"`
+- `egress.mode = "allowList"`
+- non-empty `egress.allowedCidrs`
+- non-root service execution by default (`DynamicUser = true` or non-root
+  `User`), unless explicitly opted out with
+  `systemd.services.<name>.vpn.allowRootInHighAssurance = true`
+- literal WireGuard endpoints (hostname endpoints rejected)
+- `allowedIPsAsRoutes = true`
 
-## API highlights
+## Documentation
 
-- Namespace options: `services.vpnConfinement.namespaces.<name>.*`
-- Per-service options: `systemd.services.<name>.vpn.*`
-- Per-socket options: `systemd.sockets.<name>.vpn.*`
-- Advanced service escape hatches:
-  - `vpn.extraAddressFamilies`
-  - `vpn.extraNetworkInterfaces`
+- Project docs site: https://ianhollow.github.io/vpn-confinement/
+- Architecture: `site/src/content/docs/architecture.md`
+- Threat model: `site/src/content/docs/threat-model.md`
+- Practical options guide: `site/src/content/docs/options.md`
+- Generated option reference:
+  `site/src/content/docs/reference/options-generated.md`
+- Security policy: `site/src/content/docs/security.md`
 
-For complete reference and security notes, see:
-
-- `docs/options.md`
-- `docs/threat-model.md`
-- `docs/architecture.md`
-
-## Endpoint pinning note
-
-WireGuard endpoint pinning is not implemented yet. Robust pinning likely
-requires policy in the socket birthplace namespace (often host/init namespace),
-not only inside the confined namespace. See `docs/threat-model.md` for details.
-
-## Compatibility baseline
-
-- Supported baseline: NixOS 26.05+
+Endpoint pinning for the WireGuard UDP socket is not yet implemented; see
+`site/src/content/docs/threat-model.md` for current guarantees and caveats.
 
 ## Development
 
 - Format: `nix fmt`
 - Validate: `nix flake check --show-trace --system <x86_64-linux|aarch64-linux>`
-- Runtime VM tests run on `x86_64-linux` checks; non-VM eval/reject checks run
-  on both `x86_64-linux` and `aarch64-linux`.
+- Regenerate options reference:
+  `bash scripts/generate-options-doc.sh x86_64-linux`
+- Build docs site: `bun run --cwd site build`
+
+## Community
+
+- Contributing guide: `CONTRIBUTING.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`
+- Security reporting: `site/src/content/docs/security.md`
 
 ## License
 
