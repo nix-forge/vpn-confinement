@@ -7,6 +7,7 @@ _: {
       scenarioTests = {
         baseline-confinement = ../tests/nixos/baseline-confinement.nix;
         dns-mode-behavior = ../tests/nixos/dns-mode-behavior.nix;
+        high-assurance-root-optout = ../tests/nixos/high-assurance-root-optout.nix;
         multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
         socket-activation-in-namespace = ../tests/nixos/socket-activation-in-namespace.nix;
       };
@@ -19,6 +20,8 @@ _: {
 
       rejectTests = {
         reject-dns-search-input = ../tests/nixos/reject-dns-search-input.nix;
+        reject-high-assurance-empty-allowed-cidrs = ../tests/nixos/reject-high-assurance-empty-allowed-cidrs.nix;
+        reject-high-assurance-root-service = ../tests/nixos/reject-high-assurance-root-service.nix;
         reject-high-assurance-weakeners = ../tests/nixos/reject-high-assurance-weakeners.nix;
         reject-manual-service-namespace = ../tests/nixos/reject-manual-service-namespace.nix;
         reject-hostname-wireguard-endpoints = ../tests/nixos/reject-hostname-wireguard-endpoints.nix;
@@ -63,6 +66,12 @@ _: {
 
       mkVmRuntimeCheck = _name: testFile: evalPkgs.testers.runNixOSTest { imports = [ testFile ]; };
 
+      runtimeCheckAttrs =
+        if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+          builtins.mapAttrs mkVmRuntimeCheck runtimeTests
+        else
+          { };
+
       baselineCfg = evalNode scenarioTests.baseline-confinement;
       baselineService = baselineCfg.systemd.services.netns-echo.serviceConfig;
       baselineWireguard = baselineCfg.systemd.services."wireguard-wg0";
@@ -81,6 +90,9 @@ _: {
       socketCfg = evalNode scenarioTests.socket-activation-in-namespace;
       socketUnit = socketCfg.systemd.sockets.socket-echo;
       socketService = socketCfg.systemd.services.socket-echo;
+
+      rootOptoutCfg = evalNode scenarioTests.high-assurance-root-optout;
+      rootOptoutService = rootOptoutCfg.systemd.services.rooty-optout;
     in
     {
       checks = {
@@ -128,8 +140,17 @@ _: {
               && contains "wireguard-wg0.service" socketService.bindsTo
             )
             "socket activation evaluation did not keep the socket and service inside the namespace with the expected dependencies";
+
+        high-assurance-root-optout =
+          mkEvalAssertCheck "high-assurance-root-optout"
+            (
+              rootOptoutService.serviceConfig.NetworkNamespacePath == "/run/netns/vpnapps"
+              && contains "vpn-confinement-netns@vpnapps.service" rootOptoutService.bindsTo
+              && contains "wireguard-wg0.service" rootOptoutService.bindsTo
+            )
+            "high-assurance root opt-out evaluation did not preserve expected namespace attachment and dependency wiring";
       }
       // builtins.mapAttrs mkEvalRejectCheck rejectTests
-      // builtins.mapAttrs mkVmRuntimeCheck runtimeTests;
+      // runtimeCheckAttrs;
     };
 }

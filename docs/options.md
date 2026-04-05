@@ -1,94 +1,106 @@
 # Options
 
-## Global
+This document focuses on practical usage: safe defaults, when to change an
+option, and security impact.
 
-- `services.vpnConfinement.enable`
-- `services.vpnConfinement.defaultNamespace`
-- `services.vpnConfinement.namespaces.<name>.enable`
-- `services.vpnConfinement.namespaces.<name>.securityProfile`
-- `services.vpnConfinement.namespaces.<name>.wireguard.interface`
-- `services.vpnConfinement.namespaces.<name>.wireguard.allowHostnameEndpoints`
-- `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
-- `services.vpnConfinement.namespaces.<name>.dns.mode`
-- `services.vpnConfinement.namespaces.<name>.dns.servers`
-- `services.vpnConfinement.namespaces.<name>.dns.search`
-- `services.vpnConfinement.namespaces.<name>.dns.allowHostResolverIPC`
-- `services.vpnConfinement.namespaces.<name>.ipv6.mode`
-- `services.vpnConfinement.namespaces.<name>.hostLink.enable`
-- `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
-- `services.vpnConfinement.namespaces.<name>.hostLink.nsIf`
-- `services.vpnConfinement.namespaces.<name>.hostLink.subnetIPv4`
-- `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
-- `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.tcp`
-- `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.udp`
-- `services.vpnConfinement.namespaces.<name>.egress.mode`
-- `services.vpnConfinement.namespaces.<name>.egress.allowedTcpPorts`
-- `services.vpnConfinement.namespaces.<name>.egress.allowedUdpPorts`
-- `services.vpnConfinement.namespaces.<name>.egress.allowedCidrs`
+## Global module options
 
-## Per service
+| Option                                     | Default     | When to change                              | Security impact                                     |
+| ------------------------------------------ | ----------- | ------------------------------------------- | --------------------------------------------------- |
+| `services.vpnConfinement.enable`           | `false`     | Enable module behavior                      | Enables confinement wiring and assertions           |
+| `services.vpnConfinement.defaultNamespace` | `"vpnapps"` | Multi-namespace setups or naming preference | Defines fallback trust domain for vpn-enabled units |
 
-- `systemd.services.<name>.vpn.enable`
-- `systemd.services.<name>.vpn.namespace`
-- `systemd.services.<name>.vpn.hardeningProfile`
-- `systemd.services.<name>.vpn.restrictBind`
+## Namespace options
 
-## Per socket
+### Identity and profile
 
-- `systemd.sockets.<name>.vpn.enable`
-- `systemd.sockets.<name>.vpn.namespace`
+| Option                              | Default      | When to change                                | Security impact                                               |
+| ----------------------------------- | ------------ | --------------------------------------------- | ------------------------------------------------------------- |
+| `namespaces.<name>.enable`          | `false`      | Enable a namespace policy domain              | Disabled namespaces cannot be referenced by vpn-enabled units |
+| `namespaces.<name>.securityProfile` | `"balanced"` | Use `"highAssurance"` for stricter assertions | `highAssurance` rejects weaker compatibility paths            |
 
-## Behavior notes
+### WireGuard behavior
+
+| Option                                               | Default | When to change                                  | Security impact                                               |
+| ---------------------------------------------------- | ------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `namespaces.<name>.wireguard.interface`              | `"wg0"` | Interface naming or multiple namespaces         | Must be unique across enabled namespaces                      |
+| `namespaces.<name>.wireguard.socketNamespace`        | `null`  | Advanced socket birthplace routing requirements | Misuse can weaken assumptions around endpoint path control    |
+| `namespaces.<name>.wireguard.allowHostnameEndpoints` | `false` | Only if peers require hostname endpoints        | Weaker than literal IP endpoints; rejected in `highAssurance` |
+
+### DNS policy
+
+| Option                                       | Default    | When to change                                    | Security impact                                                 |
+| -------------------------------------------- | ---------- | ------------------------------------------------- | --------------------------------------------------------------- |
+| `namespaces.<name>.dns.mode`                 | `"strict"` | `"compat"` only for resolver compatibility issues | `strict` provides common resolver leak resistance               |
+| `namespaces.<name>.dns.servers`              | `[]`       | Set namespace resolver IPs                        | In `strict`, only configured resolvers are allowed on DNS ports |
+| `namespaces.<name>.dns.search`               | `[]`       | Add required search suffixes                      | Validated domain-style suffixes only                            |
+| `namespaces.<name>.dns.allowHostResolverIPC` | `false`    | Expert compatibility override in strict mode      | Weakens strict DNS by allowing host resolver helper IPC         |
+
+### IPv6, ingress, and egress
+
+| Option                                     | Default            | When to change                                  | Security impact                                              |
+| ------------------------------------------ | ------------------ | ----------------------------------------------- | ------------------------------------------------------------ |
+| `namespaces.<name>.ipv6.mode`              | `"disable"`        | Use `"tunnel"` when IPv6 over WG is intended    | `disable` is fail closed                                     |
+| `namespaces.<name>.ingress.fromHost.tcp`   | `[]`               | Host-to-namespace ingress over hostLink         | Requires `hostLink.enable = true`                            |
+| `namespaces.<name>.ingress.fromTunnel.tcp` | `[]`               | Expose service TCP listeners through WG         | Expands reachable service surface inside namespace           |
+| `namespaces.<name>.ingress.fromTunnel.udp` | `[]`               | Expose service UDP listeners through WG         | Expands reachable service surface inside namespace           |
+| `namespaces.<name>.egress.mode`            | `"allowAllTunnel"` | Use `"allowList"` for explicit outbound control | `allowList` is required by `highAssurance`                   |
+| `namespaces.<name>.egress.allowedTcpPorts` | `[]`               | Port-level egress control in `allowList`        | Combine with CIDR constraints for strong destination control |
+| `namespaces.<name>.egress.allowedUdpPorts` | `[]`               | Port-level egress control in `allowList`        | Combine with CIDR constraints for strong destination control |
+| `namespaces.<name>.egress.allowedCidrs`    | `[]`               | Destination allowlist scope                     | Required to be non-empty in `highAssurance`                  |
+
+### Host link
+
+| Option                                  | Default            | When to change                                              | Security impact                       |
+| --------------------------------------- | ------------------ | ----------------------------------------------------------- | ------------------------------------- |
+| `namespaces.<name>.hostLink.enable`     | `false`            | Only when host-to-namespace path is required                | Adds host communication path          |
+| `namespaces.<name>.hostLink.hostIf`     | `"ve-<name>-host"` | Interface naming constraints                                | Must be unique and not equal to WG IF |
+| `namespaces.<name>.hostLink.nsIf`       | `"ve-<name>-ns"`   | Interface naming constraints                                | Must be unique and not equal to WG IF |
+| `namespaces.<name>.hostLink.subnetIPv4` | `null`             | Set explicit `/30` instead of deterministic auto-allocation | Avoid overlap across host links       |
+
+## Per-service options (`systemd.services.<name>.vpn.*`)
+
+| Option                     | Default      | When to change                                                     | Security impact                                   |
+| -------------------------- | ------------ | ------------------------------------------------------------------ | ------------------------------------------------- |
+| `enable`                   | `false`      | Confine this service                                               | Service joins namespace policy boundary           |
+| `namespace`                | `null`       | Place service in non-default namespace                             | Selects trust domain                              |
+| `hardeningProfile`         | `"baseline"` | Use `"strict"` for extra systemd hardening                         | Reduces post-compromise capabilities              |
+| `restrictBind`             | `false`      | Constrain service-created listeners to declared ingress            | Defense in depth only                             |
+| `allowRootInHighAssurance` | `false`      | Exceptional root-only daemons under `highAssurance`                | Explicitly weakens high-assurance non-root stance |
+| `extraAddressFamilies`     | `[]`         | Add AFs needed by daemon compatibility                             | Broadens allowed socket family surface            |
+| `extraNetworkInterfaces`   | `[]`         | Add interfaces beyond module default (`lo`, WG, optional hostLink) | Broadens reachable network surface                |
+
+## Per-socket options (`systemd.sockets.<name>.vpn.*`)
+
+| Option      | Default | When to change                 | Security impact                                 |
+| ----------- | ------- | ------------------------------ | ----------------------------------------------- |
+| `enable`    | `false` | Confine the socket unit itself | Socket namespace aligns with confinement policy |
+| `namespace` | `null`  | Override namespace for socket  | Must match vpn-enabled target service policy    |
+
+## High-assurance requirements
+
+`securityProfile = "highAssurance"` enforces:
+
+- `dns.mode = "strict"`
+- `dns.allowHostResolverIPC = false`
+- `egress.mode = "allowList"`
+- non-empty `egress.allowedCidrs`
+- literal WireGuard endpoints only (hostname endpoints rejected)
+- `networking.wireguard.interfaces.<if>.allowedIPsAsRoutes = true`
+- non-root vpn-enabled services by default (`DynamicUser = true` or non-root
+  `User`), unless `vpn.allowRootInHighAssurance = true`
+
+## Additional behavior notes
 
 - A service is confined when `systemd.services.<name>.vpn.enable = true`.
-- `services.vpnConfinement.targetServices` was removed in v2.
-- DNS enforcement is namespace policy (`dns.mode`), not per-service policy.
-- `securityProfile` values are `balanced` or `highAssurance`.
-- `securityProfile = "highAssurance"` defaults `egress.mode = "allowList"` and
-  turns weaker compatibility paths into assertions.
-- `dns.mode` values are `strict` or `compat`.
-- `dns.search` must contain validated domain-style search suffixes only.
-- `dns.allowHostResolverIPC = false` (default) blocks system D-Bus and
-  `/run/nscd` helper paths in strict mode.
-- `dns.allowHostResolverIPC = true` relaxes helper-path blocking for
-  compatibility.
-- `egress.mode = "allowAllTunnel"` allows all tunnel egress after DNS policy.
-- `egress.mode = "allowList"` allows only configured `allowed*` rules.
-- `dns.mode = "strict"` means common resolver leak resistance, not blanket
-  prevention of all encrypted DNS schemes.
-- `hostLink.subnetIPv4` must be an IPv4 `/30` network base when set.
-- `ingress.fromHost.tcp` requires `hostLink.enable = true`.
-- `hostLink.hostIf` and `hostLink.nsIf` must be distinct and must not reuse the
-  WireGuard interface name.
-- If `hostLink.enable = true` and `hostLink.subnetIPv4 = null`, a deterministic
-  namespace-name-hash `/30` is auto-allocated from `169.254.0.0/16`.
-- VPN-enabled services running as root emit a warning unless
-  `DynamicUser = true` or non-root `User` is set.
-- Namespace is the trust boundary. Services in one namespace share firewall and
-  DNS policy.
-- `vpn.restrictBind = true` denies service-created listeners unless they match
-  the namespace ingress policy when ingress ports are declared. It is defense in
-  depth only.
-- Socket units can be vpn-enabled and should match namespace policy with their
-  target service.
-- Literal WireGuard peer endpoints are the default and recommended path.
-- Hostname endpoints require explicit opt-in with
-  `wireguard.allowHostnameEndpoints = true` and effective
-  `dynamicEndpointRefreshSeconds > 0`.
-- Hostname endpoint refresh is weaker than literal IP endpoints because it is
-  performed by WireGuard management units rather than the confined service.
-- `wireguard.socketNamespace` is advanced. `"init"` is the main supported
-  override; setting it to the same confinement namespace is rejected.
-- `networking.wireguard.interfaces.<if>.allowedIPsAsRoutes = false` is advanced
-  and emits a warning in `balanced`; `highAssurance` rejects it.
-- vpn-enabled services must leave `serviceConfig.NetworkNamespacePath`,
-  `serviceConfig.PrivateNetwork`, and `unitConfig.JoinsNamespaceOf` unset.
-- vpn-enabled sockets must leave `socketConfig.NetworkNamespacePath` and
-  `unitConfig.JoinsNamespaceOf` unset.
-- `networking.wireguard.interfaces.<if>.fwMark` remains an upstream advanced
-  escape hatch.
-- `networking.wireguard.interfaces.<if>.mtu` remains an upstream performance
-  tuning control.
+- DNS and firewall are namespace policies, not per-service policies.
+- Namespace is the trust boundary; services in the same namespace share policy.
+- `dns.mode = "strict"` means common resolver leak resistance, not complete
+  prevention of arbitrary encrypted DNS over generic allowed destinations.
+- vpn-enabled services must not set `serviceConfig.NetworkNamespacePath`,
+  `serviceConfig.PrivateNetwork`, or `unitConfig.JoinsNamespaceOf`.
+- vpn-enabled sockets must not set `socketConfig.NetworkNamespacePath` or
+  `unitConfig.JoinsNamespaceOf`.
 
 ## Notes on removed options
 

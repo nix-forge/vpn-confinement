@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a defect in confinement behavior or docs.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Provide minimal Nix config and exact commands.
+      placeholder: |
+        1. Configure services.vpnConfinement...
+        2. Rebuild with nixos-rebuild...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Include namespace options and affected systemd unit vpn settings.
+    validations:
+      required: true
+  - type: input
+    id: nixos-version
+    attributes:
+      label: NixOS version
+      placeholder: "26.05 / unstable / commit"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System architecture
+      placeholder: "x86_64-linux, aarch64-linux"
+    validations:
+      required: true
+  - type: dropdown
+    id: security-impact
+    attributes:
+      label: Security impact
+      options:
+        - Unknown
+        - None
+        - Possible leak/control bypass
+        - Confirmed leak/control bypass
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and diagnostics
+      description: Paste relevant systemd, nftables, and evaluation error output.

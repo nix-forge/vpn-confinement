@@ -31,6 +31,7 @@ in
             namespace = mkOption {
               type = types.nullOr types.str;
               default = null;
+              description = "Namespace name override for this socket. Leave unset to use services.vpnConfinement.defaultNamespace.";
             };
           };
 

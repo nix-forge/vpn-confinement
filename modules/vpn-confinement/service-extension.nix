@@ -81,7 +81,7 @@ in
           bindAllowRules =
             (map (port: "tcp:${toString port}") allowedBindTcp)
             ++ (map (port: "udp:${toString port}") allowedBindUdp);
-          familySet =
+          defaultFamilySet =
             if nsExists && ns.ipv6.mode == "disable" then
               [
                 "AF_UNIX"
@@ -93,6 +93,13 @@ in
                 "AF_INET"
                 "AF_INET6"
               ];
+          familySet = unique (defaultFamilySet ++ config.vpn.extraAddressFamilies);
+          defaultInterfaceSet = [
+            "lo"
+            wgIf
+          ]
+          ++ lib.optionals withHostLink [ ns.hostLink.nsIf ];
+          interfaceSet = unique (defaultInterfaceSet ++ config.vpn.extraNetworkInterfaces);
         in
         {
           options.vpn = {
@@ -101,6 +108,7 @@ in
             namespace = mkOption {
               type = types.nullOr types.str;
               default = null;
+              description = "Namespace name override for this service. Leave unset to use services.vpnConfinement.defaultNamespace.";
             };
 
             hardeningProfile = mkOption {
@@ -109,12 +117,34 @@ in
                 "strict"
               ];
               default = "baseline";
+              description = "Service hardening preset applied on top of confinement wiring.";
             };
 
             restrictBind = mkOption {
               type = types.bool;
               default = false;
               description = "Restrict service-created listeners to declared namespace ingress ports as defense in depth.";
+            };
+
+            allowRootInHighAssurance = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Explicit opt-out for high-assurance non-root enforcement. Use only
+                when this service cannot run as DynamicUser or a dedicated User.
+              '';
+            };
+
+            extraAddressFamilies = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Additional AddressFamily names appended to RestrictAddressFamilies for this service.";
+            };
+
+            extraNetworkInterfaces = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Additional interface names appended to RestrictNetworkInterfaces for this service.";
             };
           };
 
@@ -126,13 +156,7 @@ in
               serviceConfig = hardeningBaseline // {
                 NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
-                RestrictNetworkInterfaces = mkDefault (
-                  [
-                    "lo"
-                    wgIf
-                  ]
-                  ++ lib.optionals withHostLink [ ns.hostLink.nsIf ]
-                );
+                RestrictNetworkInterfaces = mkDefault interfaceSet;
               };
             }
             (mkIf nsExists {

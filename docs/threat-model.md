@@ -52,6 +52,10 @@
   communication path.
 - `securityProfile = "highAssurance"` rejects `dns.allowHostResolverIPC = true`,
   `wireguard.allowHostnameEndpoints = true`, and `allowedIPsAsRoutes = false`.
+- `securityProfile = "highAssurance"` also requires destination-constrained
+  egress (`egress.allowedCidrs` must be non-empty) and non-root service
+  execution by default (unless a service sets
+  `vpn.allowRootInHighAssurance = true`).
 - `wireguard.socketNamespace` is advanced; `"init"` is the main supported
   override. Setting it to the same confinement namespace is rejected because the
   WireGuard UDP socket needs an uplink-capable birthplace namespace.
@@ -102,3 +106,13 @@
 - Socket and service units should share the same namespace policy when both are
   vpn-enabled.
 - WireGuard backend support is limited to `networking.wireguard.interfaces`.
+
+## Endpoint pinning status
+
+- Endpoint pinning for the WireGuard UDP socket is not currently implemented.
+- Namespace-local nftables controls confined workload egress, but the WireGuard
+  UDP socket itself can live in its birthplace namespace (commonly init/host).
+- Robust endpoint pinning likely requires additional policy in that birthplace
+  namespace and careful host-network interaction design.
+- Future direction (not yet implemented): optional advanced endpoint pinning
+  controls under namespace WireGuard options with literal endpoint allowlists.

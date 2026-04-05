@@ -35,9 +35,14 @@ services.
 - `securityProfile = "highAssurance"` defaults `egress.mode = "allowList"` and
   rejects weaker compatibility paths such as hostname endpoints or host resolver
   IPC.
+- `securityProfile = "highAssurance"` requires non-empty `egress.allowedCidrs`
+  so outbound policy remains destination-constrained.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
+- In `highAssurance`, vpn-enabled services must run as non-root by default
+  (`DynamicUser = true` or explicit non-root `User`) unless explicitly opted out
+  per service.
 - `dns.allowHostResolverIPC = false` (default) blocks common host resolver
   helpers (`/run/nscd` and system D-Bus sockets) in strict mode; setting it to
   `true` opts out of those helper blocks.
@@ -104,6 +109,8 @@ services.
   around them.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
+- WireGuard endpoint pinning is not yet implemented. Pinning the UDP socket path
+  likely requires additional enforcement in the socket birthplace namespace.
 - For strict environments, combine confinement with application policy and
   egress inspection.
 

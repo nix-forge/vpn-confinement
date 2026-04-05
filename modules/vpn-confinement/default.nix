@@ -7,6 +7,7 @@
 let
   inherit (lib)
     all
+    attrByPath
     attrNames
     concatMapStringsSep
     filterAttrs
@@ -455,6 +456,10 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" requires egress.mode = \"allowList\".";
       }
       {
+        assertion = !highAssurance || ns.egress.allowedCidrs != [ ];
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" requires egress.allowedCidrs to be non-empty so egress remains destination-constrained.";
+      }
+      {
         assertion = !highAssurance || !ns.wireguard.allowHostnameEndpoints;
         message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects wireguard.allowHostnameEndpoints = true; use literal peer endpoint IPs instead.";
       }
@@ -581,6 +586,12 @@ let
     let
       nsName = nsFor serviceName;
       service = config.systemd.services.${serviceName};
+      ns = attrByPath [ nsName ] null cfg.namespaces;
+      highAssurance = ns != null && ns.securityProfile == "highAssurance";
+      serviceConfig = service.serviceConfig or { };
+      user = serviceConfig.User or null;
+      dynamicUser = serviceConfig.DynamicUser or false;
+      rootLike = user == null || user == "" || user == "root" || user == "0";
     in
     [
       {
@@ -602,6 +613,10 @@ let
       {
         assertion = joinsNamespaceUnset (service.unitConfig.JoinsNamespaceOf or null);
         message = "systemd.services.${serviceName}.unitConfig.JoinsNamespaceOf conflicts with vpn-confinement namespace attachment; leave it unset.";
+      }
+      {
+        assertion = !highAssurance || service.vpn.allowRootInHighAssurance || dynamicUser || !rootLike;
+        message = "systemd.services.${serviceName} is in high-assurance namespace ${nsName} and must run non-root. Set serviceConfig.DynamicUser = true or non-root serviceConfig.User, or explicitly opt out with vpn.allowRootInHighAssurance = true.";
       }
     ]
   ) vpnEnabledServiceNames;
@@ -699,6 +714,7 @@ in
     defaultNamespace = mkOption {
       type = types.str;
       default = "vpnapps";
+      description = "Default namespace name used by vpn-enabled services and sockets when they do not set vpn.namespace.";
     };
 
     namespaces = mkOption {
@@ -725,6 +741,7 @@ in
                 interface = mkOption {
                   type = types.str;
                   default = "wg0";
+                  description = "WireGuard interface name managed for this confinement namespace.";
                 };
 
                 socketNamespace = mkOption {
@@ -764,11 +781,13 @@ in
                 servers = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
+                  description = "Allowed DNS resolver IPs used to generate namespace-local resolv.conf in strict mode.";
                 };
 
                 search = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
+                  description = "DNS search suffixes written to generated resolver config; values must be valid domain-style suffixes.";
                 };
 
                 allowHostResolverIPC = mkOption {
@@ -787,22 +806,26 @@ in
                   "tunnel"
                 ];
                 default = "disable";
+                description = "IPv6 policy inside this namespace: fail-closed disable, or tunnel when WireGuard IPv6 routes are configured.";
               };
 
               ingress = {
                 fromHost.tcp = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
+                  description = "TCP ports accepted from hostLink host endpoint into the namespace. Requires hostLink.enable = true.";
                 };
 
                 fromTunnel.tcp = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
+                  description = "TCP listener ports accepted from the WireGuard interface into the namespace.";
                 };
 
                 fromTunnel.udp = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
+                  description = "UDP listener ports accepted from the WireGuard interface into the namespace.";
                 };
               };
 
@@ -813,21 +836,25 @@ in
                     "allowList"
                   ];
                   default = "allowAllTunnel";
+                  description = "Tunnel egress policy: allow all tunnel traffic or only explicit allowlist rules.";
                 };
 
                 allowedTcpPorts = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
+                  description = "Allowed TCP destination ports for allowList mode.";
                 };
 
                 allowedUdpPorts = mkOption {
                   type = types.listOf types.port;
                   default = [ ];
+                  description = "Allowed UDP destination ports for allowList mode.";
                 };
 
                 allowedCidrs = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
+                  description = "Allowed destination CIDRs (or literal IPs) for allowList mode. Required in highAssurance.";
                 };
               };
 
@@ -835,21 +862,25 @@ in
                 enable = mkOption {
                   type = types.bool;
                   default = false;
+                  description = "Enable host-to-namespace veth link for controlled host ingress use cases.";
                 };
 
                 hostIf = mkOption {
                   type = types.str;
                   default = "ve-${name}-host";
+                  description = "Host-side veth interface name for hostLink mode.";
                 };
 
                 nsIf = mkOption {
                   type = types.str;
                   default = "ve-${name}-ns";
+                  description = "Namespace-side veth interface name for hostLink mode.";
                 };
 
                 subnetIPv4 = mkOption {
                   type = types.nullOr types.str;
                   default = null;
+                  description = "Optional hostLink /30 subnet base. Null auto-allocates a deterministic subnet from 169.254.0.0/16.";
                 };
               };
             };
