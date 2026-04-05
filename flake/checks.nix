@@ -11,11 +11,18 @@ _: {
         socket-activation-in-namespace = ../tests/nixos/socket-activation-in-namespace.nix;
       };
 
+      runtimeTests = {
+        vm-ip-leak-fail-closed = ../tests/nixos/runtime-ip-leak-fail-closed.nix;
+        vm-dns-leak-strict-vs-compat = ../tests/nixos/runtime-dns-leak-strict-vs-compat.nix;
+        vm-fail-closed-tunnel-drop = ../tests/nixos/runtime-fail-closed-tunnel-drop.nix;
+      };
+
       rejectTests = {
         reject-dns-search-input = ../tests/nixos/reject-dns-search-input.nix;
         reject-high-assurance-weakeners = ../tests/nixos/reject-high-assurance-weakeners.nix;
         reject-manual-service-namespace = ../tests/nixos/reject-manual-service-namespace.nix;
         reject-hostname-wireguard-endpoints = ../tests/nixos/reject-hostname-wireguard-endpoints.nix;
+        reject-hostname-endpoint-without-refresh = ../tests/nixos/reject-hostname-endpoint-without-refresh.nix;
       };
 
       evalNode =
@@ -53,6 +60,8 @@ _: {
           fi
           touch "$out"
         '';
+
+      mkVmRuntimeCheck = _name: testFile: evalPkgs.testers.runNixOSTest { imports = [ testFile ]; };
 
       baselineCfg = evalNode scenarioTests.baseline-confinement;
       baselineService = baselineCfg.systemd.services.netns-echo.serviceConfig;
@@ -120,6 +129,7 @@ _: {
             )
             "socket activation evaluation did not keep the socket and service inside the namespace with the expected dependencies";
       }
-      // builtins.mapAttrs mkEvalRejectCheck rejectTests;
+      // builtins.mapAttrs mkEvalRejectCheck rejectTests
+      // builtins.mapAttrs mkVmRuntimeCheck runtimeTests;
     };
 }
