@@ -3,6 +3,8 @@
   imports = [ inputs.treefmt-nix.flakeModule ];
 
   perSystem.treefmt.programs = {
+    actionlint.enable = true;
+
     yamlfmt = {
       enable = true;
       priority = 100;
@@ -37,6 +39,10 @@
     keep-sorted.enable = true;
     prettier = {
       enable = true;
+      excludes = [
+        "*.yaml"
+        "*.yml"
+      ];
       settings.proseWrap = "always";
     };
   };
