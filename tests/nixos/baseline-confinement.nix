@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-basic";
+  name = "baseline-confinement";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-basic";
+    networking.hostName = "baseline-confinement";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -78,6 +78,7 @@
         Type = "oneshot";
         DynamicUser = true;
         ExecStart = "${pkgs.coreutils}/bin/true";
+        ProcSubset = "pid";
       };
       vpn = {
         enable = true;

@@ -1,35 +1,37 @@
 _: {
-  name = "vpn-confinement-v2-wireguard-socket-namespace-ownership-reject";
+  name = "reject-high-assurance-weakeners";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-wg-socket-ownership-reject";
+    networking.hostName = "reject-high-assurance";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
       namespaces.vpnapps = {
         enable = true;
+        securityProfile = "highAssurance";
         wireguard = {
           interface = "wg0";
-          socketNamespace = "init";
+          allowHostnameEndpoints = true;
         };
         dns = {
-          mode = "strict";
           servers = [ "10.64.0.1" ];
+          allowHostResolverIPC = true;
         };
       };
     };
 
     networking.wireguard.interfaces.wg0 = {
-      socketNamespace = "foreign";
       privateKeyFile = "/run/wg-test/private.key";
       ips = [ "10.71.216.231/32" ];
+      allowedIPsAsRoutes = false;
+      dynamicEndpointRefreshSeconds = 300;
       peers = [
         {
           publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
-          endpoint = "138.199.43.91:51820";
+          endpoint = "localhost:51820";
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];

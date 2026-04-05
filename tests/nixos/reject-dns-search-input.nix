@@ -1,30 +1,26 @@
 _: {
-  name = "vpn-confinement-v2-interface-name-validation-reject";
+  name = "reject-dns-search-input";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-ifname-reject";
+    networking.hostName = "reject-dns-search-input";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
       namespaces.vpnapps = {
         enable = true;
-        wireguard.interface = "wg-interface-name-too-long";
-        hostLink = {
-          enable = true;
-          hostIf = "ve-vpnapps-host!";
-          nsIf = "ve-vpnapps-namespace-too-long";
-        };
+        wireguard.interface = "wg0";
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
+          search = [ "corp example" ];
         };
       };
     };
 
-    networking.wireguard.interfaces.wg-interface-name-too-long = {
+    networking.wireguard.interfaces.wg0 = {
       privateKeyFile = "/run/wg-test/private.key";
       ips = [ "10.71.216.231/32" ];
       peers = [

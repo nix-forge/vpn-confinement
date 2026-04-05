@@ -331,8 +331,10 @@ See `docs/threat-model.md` for the full write-up. The short version is:
 ## Development
 
 - Format: `nix fmt`
-- Validation: `nix flake check`
-- CI runs `nix flake check` on pushes and pull requests.
+- Flake checks intentionally run a small strategic Linux matrix: generated unit
+  wiring plus the most important validation rejects.
+- Linux CI validation:
+  `nix flake check --accept-flake-config --option allow-import-from-derivation false --show-trace --system x86_64-linux`
 
 ## License
 

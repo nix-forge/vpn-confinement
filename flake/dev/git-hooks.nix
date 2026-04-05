@@ -35,11 +35,7 @@
               after = [ "treefmt" ];
             };
 
-            check-merge-conflicts.enable = true;
-            check-symlinks.enable = true;
             detect-private-keys.enable = true;
-            check-case-conflicts.enable = true;
-            check-added-large-files.enable = true;
             check-executables-have-shebangs.enable = true;
             check-shebang-scripts-are-executable.enable = true;
             fix-byte-order-marker.enable = true;

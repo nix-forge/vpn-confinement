@@ -1,12 +1,12 @@
 _: {
-  name = "vpn-confinement-v2-dns-compatibility-mode";
+  name = "dns-mode-behavior";
 
   nodes.machine =
     { pkgs, ... }:
     {
       imports = [ ../../modules ];
 
-      networking.hostName = "vpnc-v2-dns-compat";
+      networking.hostName = "dns-mode-behavior";
       system.stateVersion = "26.05";
 
       services.vpnConfinement = {

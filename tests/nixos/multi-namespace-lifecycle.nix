@@ -1,11 +1,11 @@
 { pkgs, ... }:
 {
-  name = "vpn-confinement-v2-multi-namespace";
+  name = "multi-namespace-lifecycle";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-multi";
+    networking.hostName = "multi-namespace";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -128,7 +128,7 @@
     assert media_host_ip != apps_host_ip
     machine.succeed("systemctl show -p NetworkNamespacePath --value media-probe.service | grep -q '^/run/netns/media$'")
     machine.succeed("systemctl show -p NetworkNamespacePath --value apps-probe.service | grep -q '^/run/netns/apps$'")
-    machine.succeed("systemctl stop media-probe.service apps-probe.service")
+    machine.succeed("systemctl stop media-probe.service apps-probe.service wireguard-wg-media.service wireguard-wg-apps.service")
     machine.wait_until_succeeds("! ip netns list | grep -q '^media\\b'")
     machine.wait_until_succeeds("! ip netns list | grep -q '^apps\\b'")
   '';

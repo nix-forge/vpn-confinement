@@ -1,10 +1,10 @@
 _: {
-  name = "vpn-confinement-v2-dns-search-validation-reject";
+  name = "reject-manual-service-namespace";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "vpnc-v2-dns-search-validation-reject";
+    networking.hostName = "reject-manual-service-namespace";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -15,7 +15,6 @@ _: {
         dns = {
           mode = "strict";
           servers = [ "10.64.0.1" ];
-          search = [ "corp example" ];
         };
       };
     };
@@ -30,6 +29,16 @@ _: {
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];
+    };
+
+    systemd.services.manual-netns = {
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "/run/current-system/sw/bin/true";
+        NetworkNamespacePath = "/run/netns/custom";
+      };
+      unitConfig.JoinsNamespaceOf = [ "other.service" ];
+      vpn.enable = true;
     };
   };
 }
