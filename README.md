@@ -20,12 +20,6 @@
       <img src="https://img.shields.io/badge/NixOS-unstable-91d7e3?style=for-the-badge&labelColor=303446&logo=nixos&logoColor=white" alt="NixOS unstable" />
     </a>
   </p>
-
-  <p>
-    <a href="https://builtwithnix.org">
-      <img src="https://builtwithnix.org/badge.svg" alt="Built with Nix" />
-    </a>
-  </p>
 </div>
 
 Fail-closed WireGuard confinement for selected NixOS systemd services.
