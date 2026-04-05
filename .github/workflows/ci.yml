@@ -1,0 +1,69 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  flake-locks:
+    name: Flake Locks (${{ matrix.lockfile }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile:
+          - flake.lock
+          - flake/dev/flake.lock
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check flake inputs
+        uses: DeterminateSystems/flake-checker-action@v12
+        with:
+          flake-lock-path: ${{ matrix.lockfile }}
+          ignore-missing-flake-lock: false
+          fail-mode: true
+          send-statistics: false
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3.17.2
+      - name: Enable GitHub Actions Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+          use-gha-cache: true
+      - name: Check formatting
+        run: nix fmt -- --fail-on-change
+  flake-check:
+    name: Flake Check (${{ matrix.system }})
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runs_on: ubuntu-latest
+          - system: aarch64-linux
+            runs_on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3.17.2
+      - name: Enable GitHub Actions Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+          use-gha-cache: true
+      - name: Run flake checks
+        run: nix flake check --show-trace --system ${{ matrix.system }}

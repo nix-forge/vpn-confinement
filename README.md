@@ -334,7 +334,7 @@ See `docs/threat-model.md` for the full write-up. The short version is:
 - Flake checks intentionally run a small strategic Linux matrix: generated unit
   wiring plus the most important validation rejects.
 - Linux CI validation:
-  `nix flake check --accept-flake-config --option allow-import-from-derivation false --show-trace --system x86_64-linux`
+  `nix flake check --show-trace --system <x86_64-linux|aarch64-linux>`
 
 ## License
 
