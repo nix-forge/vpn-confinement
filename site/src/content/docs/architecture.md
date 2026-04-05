@@ -3,8 +3,8 @@ title: Architecture
 description: Design and implementation architecture
 ---
 
-`vpn-confinement` provides fail-closed VPN confinement for selected systemd
-services.
+This page explains how `vpn-confinement` implements fail-closed VPN confinement
+for selected systemd services.
 
 ## At a glance
 
@@ -17,10 +17,9 @@ services.
   dependent services and sockets.
 
 Use this page to understand the moving parts and lifecycle. Read
-[`Threat Model`](./threat-model/) when you need the explicit guarantee and
-non-goal boundaries, and
-[`Generated Options Reference`](./reference/options-generated/) when you are
-tuning a real deployment.
+[`Threat Model`](./threat-model/) for explicit guarantees and non-goals, and
+[`Generated Options Reference`](./reference/options-generated/) when tuning a
+real deployment.
 
 ## Detailed design
 
@@ -144,7 +143,7 @@ tuning a real deployment.
 
 ## Compatibility baseline
 
-- Supported baseline: NixOS 26.05+.
+- Supported baseline: NixOS unstable.
 - This assumes modern systemd features required by this module, including
   `NetworkNamespacePath=` and `RestrictNetworkInterfaces=`.
 

@@ -1,29 +1,48 @@
-# vpn-confinement
+<div align="center">
+  <img src="logo.png" alt="vpn-confinement logo" width="220" />
 
-<p align="center">
-  <img src="logo.png" alt="vpn-confinement logo" width="280" />
-</p>
+  <h1>VPN Confinement</h1>
 
-[![CI](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml)
-[![Docs](https://github.com/IanHollow/vpn-confinement/actions/workflows/docs.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/docs.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![NixOS](https://img.shields.io/badge/NixOS-26.05%2B-5277C3?logo=nixos&logoColor=white)](https://nixos.org)
-[![Flake](https://img.shields.io/badge/Flake-enabled-5277C3?logo=nixos&logoColor=white)](flake.nix)
+  <p>
+    <a href="https://github.com/IanHollow/vpn-confinement/issues">
+      <img src="https://img.shields.io/github/issues/IanHollow/vpn-confinement?style=for-the-badge&labelColor=303446&color=f5a97f" alt="Open issues" />
+    </a>
+    <a href="https://github.com/IanHollow/vpn-confinement/stargazers">
+      <img src="https://img.shields.io/github/stars/IanHollow/vpn-confinement?style=for-the-badge&labelColor=303446&color=c6a0f6" alt="GitHub stars" />
+    </a>
+    <a href="https://github.com/IanHollow/vpn-confinement">
+      <img src="https://img.shields.io/github/repo-size/IanHollow/vpn-confinement?style=for-the-badge&labelColor=303446&color=ea999c" alt="Repository size" />
+    </a>
+    <a href="https://github.com/IanHollow/vpn-confinement/blob/main/LICENSE">
+      <img src="https://img.shields.io/static/v1?style=for-the-badge&label=License&message=MIT&labelColor=303446&color=a6da95" alt="MIT license" />
+    </a>
+    <a href="https://nixos.org">
+      <img src="https://img.shields.io/badge/NixOS-unstable-91d7e3?style=for-the-badge&labelColor=303446&logo=nixos&logoColor=white" alt="NixOS unstable" />
+    </a>
+  </p>
+
+  <p>
+    <a href="https://builtwithnix.org">
+      <img src="https://builtwithnix.org/badge.svg" alt="Built with Nix" />
+    </a>
+  </p>
+</div>
 
 Fail-closed WireGuard confinement for selected NixOS systemd services.
 
-`vpn-confinement` lets you keep the host on its normal network while moving
-selected services into dedicated network namespaces with namespace-local
-nftables policy, strict DNS controls, and teardown wiring via `BindsTo=`.
+`vpn-confinement` places selected services into dedicated network namespaces
+with namespace-local nftables policy, generated resolver configuration, and
+systemd lifecycle wiring so tunnel or namespace loss propagates cleanly to
+confined workloads.
 
-It reduces classic IP and DNS leak paths for confined services. It does not
-claim blanket prevention of arbitrary DoH or DoQ over generic allowed egress
-without destination-constrained allowlisting.
+The project currently targets NixOS unstable.
 
-## Start Here
+It is intended for the common NixOS case where only specific services should use
+VPN egress while the host and other workloads remain on normal networking.
+
+## Documentation
 
 - Docs site: https://ianhollow.github.io/vpn-confinement/
-- Overview: `site/src/content/docs/index.mdx`
 - Architecture: `site/src/content/docs/architecture.md`
 - Threat model: `site/src/content/docs/threat-model.md`
 - Generated options reference:
@@ -32,14 +51,14 @@ without destination-constrained allowlisting.
 Canonical docs live in `site/src/content/docs/`. Root community docs are synced
 into the docs site during docs builds.
 
-## Why This Exists
+## Why it exists
 
-- Confine only the services that should use the VPN.
-- Keep the host and non-confined workloads on normal networking.
-- Put DNS and firewall policy at the namespace boundary.
+- Confine only the services that should use the tunnel.
+- Keep host networking unchanged for non-confined workloads.
+- Apply DNS and firewall policy at the namespace boundary.
 - Prefer fail-closed teardown when the namespace or tunnel disappears.
 
-## Quick Start
+## Quick start
 
 Add the module and opt specific services into confinement:
 
@@ -82,17 +101,18 @@ Add the module and opt specific services into confinement:
 }
 ```
 
-For exact option names and defaults, start with
-`site/src/content/docs/reference/options-generated.md`.
+For exact option names and defaults, start with the generated options reference
+in `site/src/content/docs/reference/options-generated.md`.
 
-## Security Model
+## Security model
 
 - Opt-in model per service or socket (`systemd.services.<name>.vpn.enable`,
   `systemd.sockets.<name>.vpn.enable`).
-- Namespace is the trust boundary (`one namespace = one DNS/firewall policy`).
+- The trust boundary is the namespace
+  (`one namespace = one DNS/firewall policy`).
 - Namespace-local nftables uses deny-by-default tunnel policy.
 - `dns.mode = "strict"` blocks classic DNS-like leak ports (`53`, `853`, `5353`,
-  `5355`) and pins resolver config.
+  `5355`) and pins resolver configuration.
 - IPv6 is fail-closed by default.
 - Tunnel or namespace loss propagates teardown to dependent units.
 

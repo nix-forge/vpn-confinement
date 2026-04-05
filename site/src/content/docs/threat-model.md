@@ -3,9 +3,9 @@ title: Threat Model
 description: Threat boundaries, guarantees, and non-goals
 ---
 
-Use this page to decide whether the module's guarantees match your environment.
-It focuses on what is intentionally covered, what becomes weaker when you opt
-into compatibility paths, and what remains out of scope.
+This page explains the guarantee boundaries for `vpn-confinement`. It focuses on
+what is intentionally covered, what becomes weaker when you opt into
+compatibility paths, and what remains out of scope.
 
 ## At a glance
 
@@ -18,7 +18,7 @@ into compatibility paths, and what remains out of scope.
   compromised host root, or isolation between mutually untrusted services in the
   same namespace.
 
-Read [`Architecture`](./architecture/) alongside this page for the actual
+Read [`Architecture`](./architecture/) alongside this page for the enforcement
 mechanisms, and [`Generated Options Reference`](./reference/options-generated/)
 when you need to map the model to concrete configuration choices.
 

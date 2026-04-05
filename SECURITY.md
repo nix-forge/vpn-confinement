@@ -5,7 +5,7 @@
 This project supports:
 
 - the latest `main` branch
-- NixOS `26.05+`
+- NixOS `unstable`
 
 Security fixes are developed on `main`. If needed, supported stable-targeted
 fixes are documented in release notes or security advisories.
