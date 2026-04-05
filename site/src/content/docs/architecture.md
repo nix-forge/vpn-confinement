@@ -6,7 +6,23 @@ description: Design and implementation architecture
 `vpn-confinement` provides fail-closed VPN confinement for selected systemd
 services.
 
-## Design
+## At a glance
+
+- The trust boundary is the namespace, not the individual service.
+- The WireGuard interface lives inside that namespace while host networking
+  stays unchanged for non-confined services.
+- Namespace-local nftables and resolver files enforce the policy surface that
+  confined services see.
+- systemd `BindsTo=` relationships make namespace or tunnel loss propagate to
+  dependent services and sockets.
+
+Use this page to understand the moving parts and lifecycle. Read
+[`Threat Model`](./threat-model/) when you need the explicit guarantee and
+non-goal boundaries, and
+[`Generated Options Reference`](./reference/options-generated/) when you are
+tuning a real deployment.
+
+## Detailed design
 
 - Services opt in with `systemd.services.<name>.vpn.enable = true`.
 - Socket units opt in with `systemd.sockets.<name>.vpn.enable = true`.
@@ -135,5 +151,10 @@ services.
 ## Documentation map
 
 - Threat and guarantee boundaries: `threat-model`.
-- Practical defaults and tuning guidance: `options`.
 - Generated option reference: `reference/options-generated`.
+
+## Read next
+
+- [`Threat Model`](./threat-model/) for guarantees, weaker modes, and non-goals.
+- [`Generated Options Reference`](./reference/options-generated/) for exact
+  option names and defaults.

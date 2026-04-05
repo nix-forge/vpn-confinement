@@ -3,6 +3,25 @@ title: Threat Model
 description: Threat boundaries, guarantees, and non-goals
 ---
 
+Use this page to decide whether the module's guarantees match your environment.
+It focuses on what is intentionally covered, what becomes weaker when you opt
+into compatibility paths, and what remains out of scope.
+
+## At a glance
+
+- Covered by design: selective-service confinement, fail-closed teardown,
+  classic DNS leak resistance in `dns.mode = "strict"`, and IPv6 fail-closed by
+  default.
+- Stronger mode: `securityProfile = "highAssurance"` requires strict DNS,
+  destination-constrained egress, and non-root service execution by default.
+- Not covered by default: arbitrary DoH or DoQ over generic allowed egress,
+  compromised host root, or isolation between mutually untrusted services in the
+  same namespace.
+
+Read [`Architecture`](./architecture/) alongside this page for the actual
+mechanisms, and [`Generated Options Reference`](./reference/options-generated/)
+when you need to map the model to concrete configuration choices.
+
 ## Assets and boundaries
 
 - Host networking for non-confined services should stay on the normal network.
@@ -123,5 +142,10 @@ description: Threat boundaries, guarantees, and non-goals
 ## Related documentation
 
 - Architecture details: `architecture`.
-- Practical options guide: `options`.
 - Generated option reference: `reference/options-generated`.
+
+## Read next
+
+- [`Architecture`](./architecture/) for the lifecycle and enforcement model.
+- [`Generated Options Reference`](./reference/options-generated/) for the exact
+  configuration surface.

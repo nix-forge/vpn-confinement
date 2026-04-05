@@ -1,21 +1,150 @@
 ---
-title: Overview
-description: vpn-confinement project overview and documentation map
+title: vpn-confinement
+description: Fail-closed WireGuard confinement for selected NixOS services
 ---
 
-`vpn-confinement` provides fail-closed WireGuard confinement for selected NixOS
-systemd services.
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import logo from "../../assets/logo.png";
 
-## Start Here
+<div class="mx-auto flex flex-col gap-12">
+  <section class="grid gap-6 rounded-3xl border border-slate-400/20 bg-[radial-gradient(circle_at_top_right,rgba(190,24,52,0.28),transparent_28%),linear-gradient(135deg,rgb(17,24,39),rgb(10,14,23)_52%,rgb(17,24,39))] px-6 py-6 text-white md:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)] md:items-center md:px-10 md:py-10">
+    <div class="flex flex-col gap-4">
+      <p class="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-rose-200">
+        Selective-service VPN isolation for NixOS
+      </p>
+      <p class="m-0 text-4xl font-bold leading-none text-balance md:text-[3.4rem]">
+        Keep the host on its normal network. Move only the services that need the
+        tunnel.
+      </p>
+      <p class="m-0 max-w-[42rem] text-[1.05rem] text-slate-200">
+        <code>vpn-confinement</code> places selected systemd services into
+        dedicated network namespaces with namespace-local nftables policy,
+        strict DNS controls, and lifecycle wiring that tears workloads down when
+        the namespace or WireGuard path disappears.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a
+          class="inline-flex items-center justify-center rounded-full bg-red-500 px-4 py-3 font-semibold text-white no-underline transition hover:bg-red-600"
+          href="./reference/options-generated/"
+        >
+          Open the generated options reference
+        </a>
+        <a
+          class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-3 font-semibold text-slate-100 no-underline transition hover:bg-white/15"
+          href="./threat-model/"
+        >
+          Read the threat model
+        </a>
+      </div>
+    </div>
+    <div class="flex flex-col items-center justify-center gap-3 text-center">
+      <img class="h-auto w-full max-w-xs" src={logo.src} alt="vpn-confinement logo" />
+      <p class="m-0 max-w-[18rem] text-sm text-slate-300 md:text-[0.95rem]">
+        One namespace equals one DNS and firewall policy boundary.
+      </p>
+    </div>
+  </section>
 
-- [Architecture](./architecture/)
-- [Threat Model](./threat-model/)
-- [Options Guide](./options/)
-- [Generated Options Reference](./reference/options-generated/)
-- [Contributing](./contributing/)
-- [Code of Conduct](./code-of-conduct/)
-- [Security](./security/)
+  <section class="flex flex-col gap-4">
+    <h2>Start here</h2>
+    <p class="m-0 max-w-[44rem] opacity-80">
+      The docs are organized around three questions: how the module works, what
+      it guarantees, and how to configure it safely.
+    </p>
 
-## Source of Truth
+    <CardGrid>
+      <LinkCard
+        title="Architecture"
+        href="./architecture/"
+        description="System model, namespace lifecycle, and why this uses netns instead of host policy routing."
+      />
+      <LinkCard
+        title="Threat model"
+        href="./threat-model/"
+        description="Guarantees, non-goals, weaker modes, and where the trust boundary actually sits."
+      />
+      <LinkCard
+        title="Generated options"
+        href="./reference/options-generated/"
+        description="The full generated option surface, defaults, and exact Nix option names."
+      />
+    </CardGrid>
 
-Canonical docs live in `site/src/content/docs/`.
+  </section>
+
+<section class="flex flex-col gap-4">
+  <h2>Why this exists</h2>
+  <p class="m-0 max-w-[44rem] opacity-80">
+    <code>vpn-confinement</code> is built for the common NixOS problem where
+    only a handful of services should use a VPN, while the host and the rest of
+    the system should stay on the normal network.
+  </p>
+  <ul class="m-0 pl-5">
+    <li>Confine only the units that need tunnel egress.</li>
+    <li>
+      Keep policy at the namespace boundary instead of scattering it per
+      service.
+    </li>
+    <li>
+      Prefer fail-closed teardown when the namespace or tunnel disappears.
+    </li>
+    <li>
+      Treat strict DNS as resolver leak resistance, not a blanket exfiltration
+      claim.
+    </li>
+  </ul>
+</section>
+
+<section class="flex flex-col gap-4">
+  <h2>Start in 5 minutes</h2>
+  <ol>
+    <li>
+      Import the module and enable <code>services.vpnConfinement</code>.
+    </li>
+    <li>Define a namespace with a WireGuard interface and DNS policy.</li>
+    <li>
+      Opt in a service with{" "}
+      <code>systemd.services.&lt;name&gt;.vpn.enable = true</code>.
+    </li>
+  </ol>
+  <p>
+    Use the{" "}
+    <a href="./reference/options-generated/">generated options reference</a>
+    when you need exact option names, defaults, and the complete configuration
+    surface.
+  </p>
+</section>
+
+<section class="flex flex-col gap-4">
+  <h2>Choose your reading path</h2>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="rounded-2xl border border-slate-400/20 bg-slate-950/3 p-4">
+      <h3>Evaluating the security model</h3>
+      <p>
+        Read <a href="./threat-model/">Threat Model</a> first, then
+        <a href="./architecture/">Architecture</a> to understand how the
+        guarantees are enforced and where the gaps still are.
+      </p>
+    </div>
+    <div class="rounded-2xl border border-slate-400/20 bg-slate-950/3 p-4">
+      <h3>Implementing a deployment</h3>
+      <p>
+        Start with the{" "}
+        <a href="./reference/options-generated/">generated options reference</a>
+        , keep the
+        <a href="./architecture/">Architecture</a> page nearby, and use the
+        <a href="./threat-model/">Threat Model</a> to validate the guarantees
+        behind any configuration changes.
+      </p>
+    </div>
+  </div>
+</section>
+
+  <section class="flex flex-col gap-4">
+    <h2>Source of truth</h2>
+    <p>
+      Canonical docs live in <code>site/src/content/docs/</code>. Root community
+      docs are synced into the site during the docs build.
+    </p>
+  </section>
+</div>

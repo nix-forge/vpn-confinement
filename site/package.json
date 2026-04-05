@@ -4,14 +4,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "sync-docs": "node ./scripts/sync-root-docs.mjs",
+    "sync-docs": "bun ./scripts/sync-root-docs.ts",
     "dev": "bun run sync-docs && astro dev",
     "build": "bun run sync-docs && astro build",
     "preview": "astro preview"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.38.2",
+    "@astrojs/starlight-tailwind": "^5.0.0",
+    "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.0.1",
-    "sharp": "^0.34.2"
+    "sharp": "^0.34.2",
+    "tailwindcss": "^4.2.2"
   }
 }

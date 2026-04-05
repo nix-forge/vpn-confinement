@@ -8,10 +8,19 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+type Mapping = {
+  from: string;
+  to: string;
+  frontmatter: {
+    title: string;
+    description: string;
+  };
+};
+
 const siteRoot = fileURLToPath(new URL("..", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
-const mappings = [
+const mappings: Mapping[] = [
   {
     from: "CONTRIBUTING.md",
     to: "site/src/content/docs/contributing.md",
@@ -38,7 +47,7 @@ const mappings = [
   },
 ];
 
-function withFrontmatter(content, frontmatter) {
+function withFrontmatter(content: string, frontmatter: Mapping["frontmatter"]) {
   const header = [
     "---",
     `title: ${frontmatter.title}`,
@@ -50,7 +59,7 @@ function withFrontmatter(content, frontmatter) {
   return `${header}${content}`;
 }
 
-function rewriteDocContent(content) {
+function rewriteDocContent(content: string) {
   return content;
 }
 
@@ -74,13 +83,9 @@ for (const mapping of mappings) {
 }
 
 mkdirSync(join(siteRoot, "src/assets"), { recursive: true });
-cpSync(
-  join(repoRoot, ".github/assets/logo-512.png"),
-  join(siteRoot, "src/assets/logo-512.png"),
-  {
-    force: true,
-  },
-);
+cpSync(join(repoRoot, "logo.png"), join(siteRoot, "src/assets/logo.png"), {
+  force: true,
+});
 
 const optionsDocPath = join(
   siteRoot,

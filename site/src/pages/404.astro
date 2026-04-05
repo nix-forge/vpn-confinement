@@ -1,0 +1,41 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Page not found",
+    description: "The requested documentation page does not exist.",
+    template: "splash",
+  }}
+  hasSidebar={false}
+  pagination={false}
+  toc={false}
+>
+  <div class="mx-auto flex max-w-2xl flex-col gap-6 py-10 text-center">
+    <p class="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-rose-300">
+      404
+    </p>
+    <h1 class="m-0 text-balance text-4xl font-bold md:text-5xl">
+      The page you requested is not in this docs tree.
+    </h1>
+    <p class="m-0 text-lg text-slate-300">
+      Start from the overview, then jump into architecture, the threat model, or
+      the options guide.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <a
+        class="inline-flex items-center justify-center rounded-full bg-red-500 px-4 py-3 font-semibold text-white no-underline transition hover:bg-red-600"
+        href="/vpn-confinement/"
+      >
+        Go to overview
+      </a>
+      <a
+        class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-3 font-semibold text-slate-100 no-underline transition hover:bg-white/15"
+        href="/vpn-confinement/options/"
+      >
+        Open options guide
+      </a>
+    </div>
+  </div>
+</StarlightPage>

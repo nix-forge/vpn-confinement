@@ -1,5 +1,6 @@
-import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "astro/config";
 
 export default defineConfig({
   site: "https://ianhollow.github.io",
@@ -10,7 +11,7 @@ export default defineConfig({
       description:
         "Fail-closed WireGuard confinement for selected NixOS services",
       logo: {
-        src: "./src/assets/logo-512.png",
+        src: "./src/assets/logo.png",
         alt: "vpn-confinement",
       },
       social: [
@@ -20,17 +21,18 @@ export default defineConfig({
           href: "https://github.com/IanHollow/vpn-confinement",
         },
       ],
+      customCss: ["./src/styles/global.css"],
+      disable404Route: true,
       sidebar: [
         {
-          label: "Guides",
+          label: "Getting Started",
+          items: [{ label: "Overview", slug: "index" }],
+        },
+        {
+          label: "Core Concepts",
           items: [
-            { label: "Overview", slug: "index" },
             { label: "Architecture", slug: "architecture" },
             { label: "Threat Model", slug: "threat-model" },
-            { label: "Options", slug: "options" },
-            { label: "Contributing", slug: "contributing" },
-            { label: "Code of Conduct", slug: "code-of-conduct" },
-            { label: "Security", slug: "security" },
           ],
         },
         {
@@ -42,7 +44,18 @@ export default defineConfig({
             },
           ],
         },
+        {
+          label: "Project",
+          items: [
+            { label: "Contributing", slug: "contributing" },
+            { label: "Security", slug: "security" },
+            { label: "Code of Conduct", slug: "code-of-conduct" },
+          ],
+        },
       ],
     }),
   ],
+  vite: {
+    plugins: [tailwindcss()],
+  },
 });

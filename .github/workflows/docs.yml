@@ -28,10 +28,6 @@ jobs:
           use-gha-cache: true
       - name: Generate options reference
         run: bash scripts/generate-options-doc.sh x86_64-linux
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "latest"
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:

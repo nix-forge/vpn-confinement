@@ -1,7 +1,7 @@
 # vpn-confinement
 
 <p align="center">
-  <img src=".github/assets/logo-512.png" alt="vpn-confinement logo" width="240" />
+  <img src="logo.png" alt="vpn-confinement logo" width="280" />
 </p>
 
 [![CI](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml/badge.svg)](https://github.com/IanHollow/vpn-confinement/actions/workflows/ci.yml)
@@ -12,11 +12,32 @@
 
 Fail-closed WireGuard confinement for selected NixOS systemd services.
 
-`vpn-confinement` reduces classic IP and DNS leak paths by combining dedicated
-network namespaces, namespace-local nftables policy, strict DNS controls, and
-lifecycle teardown via `BindsTo=`. It does not claim blanket prevention of
-arbitrary DoH/DoQ over generic egress without destination-constrained
-allowlisting.
+`vpn-confinement` lets you keep the host on its normal network while moving
+selected services into dedicated network namespaces with namespace-local
+nftables policy, strict DNS controls, and teardown wiring via `BindsTo=`.
+
+It reduces classic IP and DNS leak paths for confined services. It does not
+claim blanket prevention of arbitrary DoH or DoQ over generic allowed egress
+without destination-constrained allowlisting.
+
+## Start Here
+
+- Docs site: https://ianhollow.github.io/vpn-confinement/
+- Overview: `site/src/content/docs/index.mdx`
+- Architecture: `site/src/content/docs/architecture.md`
+- Threat model: `site/src/content/docs/threat-model.md`
+- Generated options reference:
+  `site/src/content/docs/reference/options-generated.md`
+
+Canonical docs live in `site/src/content/docs/`. Root community docs are synced
+into the docs site during docs builds.
+
+## Why This Exists
+
+- Confine only the services that should use the VPN.
+- Keep the host and non-confined workloads on normal networking.
+- Put DNS and firewall policy at the namespace boundary.
+- Prefer fail-closed teardown when the namespace or tunnel disappears.
 
 ## Quick Start
 
@@ -61,6 +82,9 @@ Add the module and opt specific services into confinement:
 }
 ```
 
+For exact option names and defaults, start with
+`site/src/content/docs/reference/options-generated.md`.
+
 ## Security Model
 
 - Opt-in model per service or socket (`systemd.services.<name>.vpn.enable`,
@@ -87,16 +111,6 @@ Profiles:
   `systemd.services.<name>.vpn.allowRootInHighAssurance = true`
 - literal WireGuard endpoints (hostname endpoints rejected)
 - `allowedIPsAsRoutes = true`
-
-## Documentation
-
-- Project docs site: https://ianhollow.github.io/vpn-confinement/
-- Architecture: `site/src/content/docs/architecture.md`
-- Threat model: `site/src/content/docs/threat-model.md`
-- Practical options guide: `site/src/content/docs/options.md`
-- Generated option reference:
-  `site/src/content/docs/reference/options-generated.md`
-- Security policy: `site/src/content/docs/security.md`
 
 Endpoint pinning for the WireGuard UDP socket is not yet implemented; see
 `site/src/content/docs/threat-model.md` for current guarantees and caveats.
