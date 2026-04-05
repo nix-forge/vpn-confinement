@@ -23,8 +23,9 @@ allowlisting.
 Add the module and opt specific services into confinement:
 
 ```nix
+{inputs, ...}:
 {
-  imports = [ vpn-confinement.nixosModules.default ];
+  imports = [ inputs.vpn-confinement.nixosModules.default ];
 
   services.vpnConfinement = {
     enable = true;
