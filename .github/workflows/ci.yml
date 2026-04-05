@@ -21,7 +21,7 @@ jobs:
           - flake/dev/flake.lock
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Check flake inputs
         uses: DeterminateSystems/flake-checker-action@v12
         with:
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3.17.2
       - name: Enable GitHub Actions Nix cache
@@ -57,7 +57,7 @@ jobs:
             runs_on: ubuntu-24.04-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3.17.2
       - name: Enable GitHub Actions Nix cache
