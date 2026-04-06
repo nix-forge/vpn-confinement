@@ -134,12 +134,13 @@ For a practical host reverse-proxy pattern, see
   around them.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
-- Endpoint pinning MVP is implemented with
+- Endpoint pinning is implemented with
   `wireguard.endpointPinning.enable = true`.
-- Endpoint pinning currently supports host/init socket birthplace only
-  (`wireguard.socketNamespace = null` or `"init"`).
-- Endpoint pinning requires literal peer endpoints and applies host-side
-  nftables policy keyed by WireGuard fwmark.
+- Endpoint pinning applies in the effective WireGuard socket birthplace
+  namespace (`init` by default, or custom `wireguard.socketNamespace` when
+  configured).
+- Endpoint pinning requires literal peer endpoints and applies nftables policy
+  keyed by WireGuard fwmark in that birthplace namespace.
 - For strict environments, combine confinement with application policy and
   egress inspection.
 

@@ -369,15 +369,21 @@ let
         after = [
           "vpn-confinement-netns@${nsName}.service"
         ]
-        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [
+          "vpn-confinement-endpoint-pinning@${nsName}.service"
+        ];
         requires = [
           "vpn-confinement-netns@${nsName}.service"
         ]
-        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [
+          "vpn-confinement-endpoint-pinning@${nsName}.service"
+        ];
         bindsTo = [
           "vpn-confinement-netns@${nsName}.service"
         ]
-        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [
+          "vpn-confinement-endpoint-pinning@${nsName}.service"
+        ];
       };
     }) enabledNamespaces
   );
@@ -403,10 +409,9 @@ let
     assigned
   ) endpointPinningNamespaces;
 
-  endpointPinningPolicyRules = concatMapStringsSep "\n" (
-    nsName:
+  endpointPinningUnits = mapAttrs' (
+    nsName: ns:
     let
-      ns = enabledNamespaces.${nsName};
       wg = ns.wireguard.interface;
       wgConfig = attrByPath [ wg ] null config.networking.wireguard.interfaces;
       mark =
@@ -423,48 +428,58 @@ let
           if endpoint == null then null else vpnLib.parseLiteralEndpoint endpoint
         ) (if wgConfig == null then [ ] else (wgConfig.peers or [ ]))
       );
-      acceptRules = map (
+      policyRules = concatMapStringsSep "\n" (
         spec:
         "meta mark ${toString mark} udp ${spec.family} daddr ${spec.address} udp dport ${toString spec.port} accept"
       ) endpointSpecs;
-    in
-    concatMapStringsSep "\n" (rule: rule) (acceptRules ++ [ "meta mark ${toString mark} udp drop" ])
-  ) endpointPinningNamespaces;
-
-  endpointPinningUnit = mkIf (endpointPinningNamespaces != [ ]) {
-    vpn-confinement-endpoint-pinning =
-      let
-        nftRules = pkgs.writeText "vpn-confinement-endpoint-pinning.nft" ''
-          table inet vpnc_endpoint_pin {
-            chain output {
-              type filter hook output priority filter; policy accept;
-              ${endpointPinningPolicyRules}
-            }
+      socketBirthplace =
+        if ns.wireguard.socketNamespace == null || ns.wireguard.socketNamespace == "init" then
+          "init"
+        else
+          ns.wireguard.socketNamespace;
+      nftExec =
+        if socketBirthplace == "init" then
+          "${pkgs.nftables}/bin/nft"
+        else
+          "${pkgs.iproute2}/bin/ip netns exec ${socketBirthplace} ${pkgs.nftables}/bin/nft";
+      tableName = "vpnc_endpoint_pin_${builtins.replaceStrings [ "." "-" ] [ "_" "_" ] nsName}";
+      nftRules = pkgs.writeText "vpn-confinement-endpoint-pinning-${nsName}.nft" ''
+        table inet ${tableName} {
+          chain output {
+            type filter hook output priority filter; policy accept;
+            ${policyRules}
+            meta mark ${toString mark} udp drop
           }
-        '';
-      in
-      {
-        description = "Apply WireGuard endpoint pinning policy";
-        wantedBy = [ "multi-user.target" ];
-        before = map (
-          nsName: "wireguard-${enabledNamespaces.${nsName}.wireguard.interface}.service"
-        ) endpointPinningNamespaces;
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          set -eu
-          ${pkgs.nftables}/bin/nft -c -f ${nftRules}
-          ${pkgs.nftables}/bin/nft delete table inet vpnc_endpoint_pin >/dev/null 2>&1 || true
-          ${pkgs.nftables}/bin/nft -f ${nftRules}
-        '';
-        postStop = ''
-          set -eu
-          ${pkgs.nftables}/bin/nft delete table inet vpnc_endpoint_pin >/dev/null 2>&1 || true
-        '';
+        }
+      '';
+      birthplaceManaged =
+        socketBirthplace != "init" && builtins.hasAttr socketBirthplace enabledNamespaces;
+      unitName = "vpn-confinement-endpoint-pinning@${nsName}";
+    in
+    nameValuePair unitName {
+      description = "Apply endpoint pinning policy for ${wg}";
+      before = [ "wireguard-${wg}.service" ];
+      after = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
+      requires = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
+      bindsTo = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
+      partOf = [ "wireguard-${wg}.service" ];
+      unitConfig.StopWhenUnneeded = true;
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
       };
-  };
+      script = ''
+        set -eu
+        ${nftExec} -c -f ${nftRules}
+        ${nftExec} delete table inet ${tableName} >/dev/null 2>&1 || true
+        ${nftExec} -f ${nftRules}
+      '';
+      postStop = ''
+        set -eu
+        ${nftExec} delete table inet ${tableName} >/dev/null 2>&1 || true
+      '';
+    }
+  ) (filterAttrs (_: ns: ns.wireguard.endpointPinning.enable) enabledNamespaces);
 
   wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
 
@@ -676,13 +691,6 @@ let
       }
       {
         assertion =
-          !ns.wireguard.endpointPinning.enable
-          || ns.wireguard.socketNamespace == null
-          || ns.wireguard.socketNamespace == "init";
-        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.enable currently supports only host/init WireGuard socket birthplace (wireguard.socketNamespace = null or \"init\").";
-      }
-      {
-        assertion =
           !(builtins.hasAttr wg config.networking.wireguard.interfaces)
           || !ns.wireguard.endpointPinning.enable
           || (
@@ -844,6 +852,17 @@ let
         (wgExists && ns.securityProfile != "highAssurance" && !(wgConfig.allowedIPsAsRoutes or true))
         [
           "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
+        ]
+    ++
+      lib.optionals
+        (
+          ns.wireguard.endpointPinning.enable
+          && ns.wireguard.socketNamespace != null
+          && ns.wireguard.socketNamespace != "init"
+          && !(builtins.hasAttr ns.wireguard.socketNamespace enabledNamespaces)
+        )
+        [
+          "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.enable targets socket namespace ${ns.wireguard.socketNamespace}, which is not managed by services.vpnConfinement. Ensure that namespace exists before wireguard-${wg}.service starts."
         ]
   ) enabledNamespaceNames;
 
@@ -1187,7 +1206,7 @@ in
 
     systemd.services = mkMerge [
       namespaceUnits
-      endpointPinningUnit
+      endpointPinningUnits
       wgDependencyUnits
     ];
     networking.wireguard.interfaces = wireguardAssignments;

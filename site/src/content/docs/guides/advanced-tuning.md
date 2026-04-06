@@ -18,8 +18,9 @@ These settings are for advanced deployments. Start with the common path first.
 Treat this as an escape hatch. Leave unset unless you have a concrete reason to
 move WireGuard socket birthplace.
 
-When `wireguard.endpointPinning.enable = true` (MVP), supported socket
-birthplace is host/init only (`null` or `"init"`).
+When `wireguard.endpointPinning.enable = true`, pinning is applied in the
+effective socket birthplace namespace (`init` by default or a custom
+`wireguard.socketNamespace`).
 
 ## Manual host-link subnet pinning
 
@@ -38,5 +39,5 @@ Endpoint pinning requires literal endpoints.
 
 ## Read next
 
-- [`Security Exceptions`](./security-exceptions/)
+- [`Security Exceptions`](../security-exceptions/)
 - [`Threat Model`](../threat-model/)

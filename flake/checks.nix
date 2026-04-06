@@ -7,6 +7,7 @@ _: {
       scenarioTests = {
         baseline-confinement = ../tests/nixos/baseline-confinement.nix;
         dns-mode-behavior = ../tests/nixos/dns-mode-behavior.nix;
+        endpoint-pinning-custom-socket-namespace = ../tests/nixos/endpoint-pinning-custom-socket-namespace.nix;
         endpoint-pinning-mvp = ../tests/nixos/endpoint-pinning-mvp.nix;
         high-assurance-root-optout = ../tests/nixos/high-assurance-root-optout.nix;
         multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
@@ -24,7 +25,6 @@ _: {
       rejectTests = {
         reject-dns-search-input = ../tests/nixos/reject-dns-search-input.nix;
         reject-endpoint-pinning-hostname-endpoints = ../tests/nixos/reject-endpoint-pinning-hostname-endpoints.nix;
-        reject-endpoint-pinning-noninit-socket-namespace = ../tests/nixos/reject-endpoint-pinning-noninit-socket-namespace.nix;
         reject-high-assurance-empty-allowed-cidrs = ../tests/nixos/reject-high-assurance-empty-allowed-cidrs.nix;
         reject-high-assurance-root-service = ../tests/nixos/reject-high-assurance-root-service.nix;
         reject-high-assurance-weakeners = ../tests/nixos/reject-high-assurance-weakeners.nix;
@@ -101,8 +101,14 @@ _: {
 
       endpointPinningCfg = evalNode scenarioTests.endpoint-pinning-mvp;
       endpointPinningWireguard = endpointPinningCfg.systemd.services."wireguard-wg0";
-      endpointPinningUnit = endpointPinningCfg.systemd.services."vpn-confinement-endpoint-pinning";
+      endpointPinningUnit =
+        endpointPinningCfg.systemd.services."vpn-confinement-endpoint-pinning@vpnapps";
       endpointPinningFwMark = endpointPinningCfg.networking.wireguard.interfaces.wg0.fwMark;
+
+      endpointPinningCustomCfg = evalNode scenarioTests.endpoint-pinning-custom-socket-namespace;
+      endpointPinningCustomWireguard = endpointPinningCustomCfg.systemd.services."wireguard-wg0";
+      endpointPinningCustomUnit =
+        endpointPinningCustomCfg.systemd.services."vpn-confinement-endpoint-pinning@vpnapps";
 
       publishCfg = evalNode scenarioTests.publish-to-host-abstraction;
       publishNs = publishCfg.services.vpnConfinement.namespaces.vpnapps;
@@ -168,12 +174,23 @@ _: {
             "high-assurance root opt-out evaluation did not preserve expected namespace attachment and dependency wiring";
 
         endpoint-pinning-mvp = mkEvalAssertCheck "endpoint-pinning-mvp" (
-          contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.after
-          && contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.requires
-          && contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.bindsTo
+          contains "vpn-confinement-endpoint-pinning@vpnapps.service" endpointPinningWireguard.after
+          && contains "vpn-confinement-endpoint-pinning@vpnapps.service" endpointPinningWireguard.requires
+          && contains "vpn-confinement-endpoint-pinning@vpnapps.service" endpointPinningWireguard.bindsTo
           && builtins.match "^[0-9]+$" endpointPinningFwMark != null
           && contains "wireguard-wg0.service" endpointPinningUnit.before
         ) "endpoint pinning evaluation did not generate expected WireGuard dependency wiring and fwMark";
+
+        endpoint-pinning-custom-socket-namespace =
+          mkEvalAssertCheck "endpoint-pinning-custom-socket-namespace"
+            (
+              contains "vpn-confinement-endpoint-pinning@vpnapps.service" endpointPinningCustomWireguard.after
+              && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.after
+              && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.requires
+              && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.bindsTo
+              && builtins.match ".*ip netns exec birthplace .*" endpointPinningCustomUnit.script != null
+            )
+            "endpoint pinning did not attach policy to the configured custom socket birthplace namespace";
 
         publish-to-host-abstraction = mkEvalAssertCheck "publish-to-host-abstraction" (
           !publishNs.hostLink.enable

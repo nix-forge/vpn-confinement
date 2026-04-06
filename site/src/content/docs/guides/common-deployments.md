@@ -45,7 +45,7 @@ them directly:
 
 These are useful for reverse proxy upstreams and host-side monitoring targets.
 
-## Endpoint pinning (MVP)
+## Endpoint pinning
 
 Enable endpoint pinning when peers use literal endpoint IPs:
 
@@ -53,16 +53,16 @@ Enable endpoint pinning when peers use literal endpoint IPs:
 services.vpnConfinement.namespaces.vpnapps.wireguard.endpointPinning.enable = true;
 ```
 
-MVP scope:
+Endpoint pinning behavior:
 
-- Works for host/init socket birthplace (`wireguard.socketNamespace = null` or
-  `"init"`).
-- Uses a WireGuard fwmark selector and host nftables to allow only configured
-  endpoint tuples.
+- Works in the effective WireGuard socket birthplace namespace (`init` by
+  default, or a custom `wireguard.socketNamespace` when configured).
+- Uses a WireGuard fwmark selector and nftables policy in that birthplace
+  namespace to allow only configured endpoint tuples.
 - Hostname endpoints are rejected when pinning is enabled.
 
 ## Read next
 
-- [`Reverse Proxy`](./reverse-proxy/)
-- [`Security Profile Decision Matrix`](./security-profile-decision-matrix/)
-- [`Advanced Tuning`](./advanced-tuning/)
+- [`Reverse Proxy`](../reverse-proxy/)
+- [`Security Profile Decision Matrix`](../security-profile-decision-matrix/)
+- [`Advanced Tuning`](../advanced-tuning/)

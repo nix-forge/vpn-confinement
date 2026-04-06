@@ -64,7 +64,7 @@ when you need to map the model to concrete configuration choices.
   `SocketBindDeny` from namespace ingress policy when ingress listeners are
   declared.
 - `wireguard.endpointPinning.enable` to constrain WireGuard outer UDP egress to
-  configured literal endpoint tuples (MVP scope).
+  configured literal endpoint tuples.
 
 ## Weaker modes and opt-outs
 
@@ -133,12 +133,11 @@ when you need to map the model to concrete configuration choices.
 
 ## Endpoint pinning status
 
-- Endpoint pinning MVP is available via
+- Endpoint pinning is available via
   `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`.
-- MVP applies host-side nftables policy to marked WireGuard outer UDP egress and
-  allows only configured literal endpoint tuples (`ip/ip6 + daddr + dport`).
-- MVP supports host/init socket birthplace only
-  (`wireguard.socketNamespace = null` or `"init"`).
+- Endpoint pinning applies nftables policy to marked WireGuard outer UDP egress
+  in the effective socket birthplace namespace and allows only configured
+  literal endpoint tuples (`ip/ip6 + daddr + dport`).
 - Endpoint pinning rejects hostname endpoints; use literal endpoints.
 - This reduces accidental weak egress paths for the WireGuard UDP socket but is
   not a defense against compromised host root.
