@@ -7,8 +7,11 @@ _: {
       scenarioTests = {
         baseline-confinement = ../tests/nixos/baseline-confinement.nix;
         dns-mode-behavior = ../tests/nixos/dns-mode-behavior.nix;
+        endpoint-pinning-mvp = ../tests/nixos/endpoint-pinning-mvp.nix;
         high-assurance-root-optout = ../tests/nixos/high-assurance-root-optout.nix;
         multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
+        publish-to-host-abstraction = ../tests/nixos/publish-to-host-abstraction.nix;
+        restrict-bind-effective-ingress = ../tests/nixos/restrict-bind-effective-ingress.nix;
         socket-activation-in-namespace = ../tests/nixos/socket-activation-in-namespace.nix;
       };
 
@@ -20,6 +23,8 @@ _: {
 
       rejectTests = {
         reject-dns-search-input = ../tests/nixos/reject-dns-search-input.nix;
+        reject-endpoint-pinning-hostname-endpoints = ../tests/nixos/reject-endpoint-pinning-hostname-endpoints.nix;
+        reject-endpoint-pinning-noninit-socket-namespace = ../tests/nixos/reject-endpoint-pinning-noninit-socket-namespace.nix;
         reject-high-assurance-empty-allowed-cidrs = ../tests/nixos/reject-high-assurance-empty-allowed-cidrs.nix;
         reject-high-assurance-root-service = ../tests/nixos/reject-high-assurance-root-service.nix;
         reject-high-assurance-weakeners = ../tests/nixos/reject-high-assurance-weakeners.nix;
@@ -93,6 +98,18 @@ _: {
 
       rootOptoutCfg = evalNode scenarioTests.high-assurance-root-optout;
       rootOptoutService = rootOptoutCfg.systemd.services.rooty-optout;
+
+      endpointPinningCfg = evalNode scenarioTests.endpoint-pinning-mvp;
+      endpointPinningWireguard = endpointPinningCfg.systemd.services."wireguard-wg0";
+      endpointPinningUnit = endpointPinningCfg.systemd.services."vpn-confinement-endpoint-pinning";
+      endpointPinningFwMark = endpointPinningCfg.networking.wireguard.interfaces.wg0.fwMark;
+
+      publishCfg = evalNode scenarioTests.publish-to-host-abstraction;
+      publishNs = publishCfg.services.vpnConfinement.namespaces.vpnapps;
+      publishServiceUnit = publishCfg.systemd.services."vpn-confinement-netns@vpnapps";
+
+      restrictBindCfg = evalNode scenarioTests.restrict-bind-effective-ingress;
+      restrictBindService = restrictBindCfg.systemd.services.restrict-bind-probe.serviceConfig;
     in
     {
       checks = {
@@ -149,6 +166,31 @@ _: {
               && contains "wireguard-wg0.service" rootOptoutService.bindsTo
             )
             "high-assurance root opt-out evaluation did not preserve expected namespace attachment and dependency wiring";
+
+        endpoint-pinning-mvp = mkEvalAssertCheck "endpoint-pinning-mvp" (
+          contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.after
+          && contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.requires
+          && contains "vpn-confinement-endpoint-pinning.service" endpointPinningWireguard.bindsTo
+          && builtins.match "^[0-9]+$" endpointPinningFwMark != null
+          && contains "wireguard-wg0.service" endpointPinningUnit.before
+        ) "endpoint pinning evaluation did not generate expected WireGuard dependency wiring and fwMark";
+
+        publish-to-host-abstraction = mkEvalAssertCheck "publish-to-host-abstraction" (
+          !publishNs.hostLink.enable
+          && publishNs.publishToHost.tcp == [ 8080 ]
+          && publishNs.derived.hostLink.subnetIPv4 != null
+          && publishNs.derived.hostLink.hostAddressIPv4 != null
+          && publishNs.derived.hostLink.nsAddressIPv4 != null
+          && builtins.match ".*ve-vpnapps-host.*" publishServiceUnit.script != null
+          && builtins.match ".*ip addr replace .* dev ve-vpnapps-host.*" publishServiceUnit.script != null
+        ) "publishToHost evaluation did not expose derived hostLink values or host ingress wiring";
+
+        restrict-bind-effective-ingress = mkEvalAssertCheck "restrict-bind-effective-ingress" (
+          contains "tcp:8080" restrictBindService.SocketBindAllow
+          && contains "tcp:9090" restrictBindService.SocketBindAllow
+          && contains "udp:51413" restrictBindService.SocketBindAllow
+          && contains "any" restrictBindService.SocketBindDeny
+        ) "restrictBind evaluation did not derive bind restrictions from effective ingress";
 
         options-doc-generation = config.packages.options-doc-markdown;
       }

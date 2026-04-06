@@ -10,6 +10,7 @@ let
     attrByPath
     attrNames
     concatMapStringsSep
+    filter
     filterAttrs
     hasSuffix
     mapAttrs'
@@ -68,7 +69,11 @@ let
 
   namespacePath = nsName: "/run/netns/${nsName}";
 
-  hostLinkEnabled = _nsName: ns: ns.hostLink.enable;
+  hostLinkEnabled = _nsName: ns: ns.hostLink.enable || ns.publishToHost.tcp != [ ];
+
+  effectiveFromHostIngressTcp = builtins.mapAttrs (
+    _nsName: ns: unique (ns.ingress.fromHost.tcp ++ ns.publishToHost.tcp)
+  ) enabledNamespaces;
 
   effectiveHostLink = builtins.mapAttrs (
     nsName: ns:
@@ -206,7 +211,7 @@ let
   mkNftRules =
     nsName: ns:
     let
-      hostIngressTcp = unique ns.ingress.fromHost.tcp;
+      hostIngressTcp = effectiveFromHostIngressTcp.${nsName};
       inboundTcp = unique ns.ingress.fromTunnel.tcp;
       inboundUdp = unique ns.ingress.fromTunnel.udp;
       withHostLink = hostLinkEnabled nsName ns;
@@ -338,6 +343,13 @@ let
 
   wireguardAssignments = mapAttrs' (
     nsName: ns:
+    let
+      endpointPinningMark =
+        if ns.wireguard.endpointPinning.fwMark != null then
+          ns.wireguard.endpointPinning.fwMark
+        else
+          vpnLib.deriveWireguardFwMark ns.wireguard.interface;
+    in
     nameValuePair ns.wireguard.interface (
       {
         interfaceNamespace = lib.mkDefault nsName;
@@ -345,18 +357,114 @@ let
       // lib.optionalAttrs (ns.wireguard.socketNamespace != null) {
         socketNamespace = lib.mkDefault ns.wireguard.socketNamespace;
       }
+      // lib.optionalAttrs ns.wireguard.endpointPinning.enable {
+        fwMark = lib.mkDefault (toString endpointPinningMark);
+      }
     )
   ) enabledNamespaces;
 
   wgDependencyUnits = mkMerge (
     mapAttrsToList (nsName: ns: {
       "wireguard-${ns.wireguard.interface}" = {
-        after = [ "vpn-confinement-netns@${nsName}.service" ];
-        requires = [ "vpn-confinement-netns@${nsName}.service" ];
-        bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
+        after = [
+          "vpn-confinement-netns@${nsName}.service"
+        ]
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
+        requires = [
+          "vpn-confinement-netns@${nsName}.service"
+        ]
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
+        bindsTo = [
+          "vpn-confinement-netns@${nsName}.service"
+        ]
+        ++ lib.optionals ns.wireguard.endpointPinning.enable [ "vpn-confinement-endpoint-pinning.service" ];
       };
     }) enabledNamespaces
   );
+
+  endpointPinningNamespaces = filter (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+    in
+    ns.wireguard.endpointPinning.enable
+  ) enabledNamespaceNames;
+
+  endpointPinningMarks = map (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+      assigned =
+        if ns.wireguard.endpointPinning.fwMark != null then
+          ns.wireguard.endpointPinning.fwMark
+        else
+          vpnLib.deriveWireguardFwMark ns.wireguard.interface;
+    in
+    assigned
+  ) endpointPinningNamespaces;
+
+  endpointPinningPolicyRules = concatMapStringsSep "\n" (
+    nsName:
+    let
+      ns = enabledNamespaces.${nsName};
+      wg = ns.wireguard.interface;
+      wgConfig = attrByPath [ wg ] null config.networking.wireguard.interfaces;
+      mark =
+        if ns.wireguard.endpointPinning.fwMark != null then
+          ns.wireguard.endpointPinning.fwMark
+        else
+          vpnLib.deriveWireguardFwMark wg;
+      endpointSpecs = builtins.filter (spec: spec != null) (
+        map (
+          peer:
+          let
+            endpoint = peer.endpoint or null;
+          in
+          if endpoint == null then null else vpnLib.parseLiteralEndpoint endpoint
+        ) (if wgConfig == null then [ ] else (wgConfig.peers or [ ]))
+      );
+      acceptRules = map (
+        spec:
+        "meta mark ${toString mark} udp ${spec.family} daddr ${spec.address} udp dport ${toString spec.port} accept"
+      ) endpointSpecs;
+    in
+    concatMapStringsSep "\n" (rule: rule) (acceptRules ++ [ "meta mark ${toString mark} udp drop" ])
+  ) endpointPinningNamespaces;
+
+  endpointPinningUnit = mkIf (endpointPinningNamespaces != [ ]) {
+    vpn-confinement-endpoint-pinning =
+      let
+        nftRules = pkgs.writeText "vpn-confinement-endpoint-pinning.nft" ''
+          table inet vpnc_endpoint_pin {
+            chain output {
+              type filter hook output priority filter; policy accept;
+              ${endpointPinningPolicyRules}
+            }
+          }
+        '';
+      in
+      {
+        description = "Apply WireGuard endpoint pinning policy";
+        wantedBy = [ "multi-user.target" ];
+        before = map (
+          nsName: "wireguard-${enabledNamespaces.${nsName}.wireguard.interface}.service"
+        ) endpointPinningNamespaces;
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          set -eu
+          ${pkgs.nftables}/bin/nft -c -f ${nftRules}
+          ${pkgs.nftables}/bin/nft delete table inet vpnc_endpoint_pin >/dev/null 2>&1 || true
+          ${pkgs.nftables}/bin/nft -f ${nftRules}
+        '';
+        postStop = ''
+          set -eu
+          ${pkgs.nftables}/bin/nft delete table inet vpnc_endpoint_pin >/dev/null 2>&1 || true
+        '';
+      };
+  };
 
   wgNames = map (nsName: enabledNamespaces.${nsName}.wireguard.interface) enabledNamespaceNames;
 
@@ -563,8 +671,45 @@ let
         message = "services.vpnConfinement.namespaces.${nsName}.hostLink.subnetIPv4 must be a valid IPv4 /30 network base when host link is enabled.";
       }
       {
-        assertion = ns.ingress.fromHost.tcp == [ ] || withHostLink;
+        assertion = ns.ingress.fromHost.tcp == [ ] || ns.hostLink.enable;
         message = "services.vpnConfinement.namespaces.${nsName}.ingress.fromHost.tcp requires hostLink.enable = true.";
+      }
+      {
+        assertion =
+          !ns.wireguard.endpointPinning.enable
+          || ns.wireguard.socketNamespace == null
+          || ns.wireguard.socketNamespace == "init";
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.enable currently supports only host/init WireGuard socket birthplace (wireguard.socketNamespace = null or \"init\").";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || !ns.wireguard.endpointPinning.enable
+          || (
+            let
+              wgConfig = config.networking.wireguard.interfaces.${wg};
+              endpoints = builtins.filter (endpoint: endpoint != null) (
+                map (peer: peer.endpoint or null) (wgConfig.peers or [ ])
+              );
+            in
+            endpoints != [ ] && all vpnLib.isLiteralEndpoint endpoints
+          );
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.enable requires networking.wireguard.interfaces.${wg}.peers.*.endpoint to be non-empty and literal IP endpoints only.";
+      }
+      {
+        assertion =
+          !ns.wireguard.endpointPinning.enable
+          || (
+            let
+              mark =
+                if ns.wireguard.endpointPinning.fwMark != null then
+                  ns.wireguard.endpointPinning.fwMark
+                else
+                  vpnLib.deriveWireguardFwMark wg;
+            in
+            mark >= 1 && mark <= 4294967295
+          );
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.fwMark must resolve to an integer in [1, 4294967295].";
       }
       {
         assertion = !withHostLink || ns.hostLink.hostIf != ns.hostLink.nsIf;
@@ -701,6 +846,28 @@ let
           "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
         ]
   ) enabledNamespaceNames;
+
+  restrictBindWarnings = builtins.concatMap (
+    serviceName:
+    let
+      service = config.systemd.services.${serviceName};
+      nsName = nsFor serviceName;
+      ns = attrByPath [ nsName ] null cfg.namespaces;
+      effectiveIngress =
+        if ns == null then
+          [ ]
+        else
+          unique (
+            ns.ingress.fromHost.tcp
+            ++ ns.publishToHost.tcp
+            ++ ns.ingress.fromTunnel.tcp
+            ++ ns.ingress.fromTunnel.udp
+          );
+    in
+    lib.optionals (service.vpn.restrictBind && effectiveIngress == [ ]) [
+      "systemd.services.${serviceName}.vpn.restrictBind = true but namespace ${nsName} exposes no effective ingress ports (ingress.fromHost.tcp, publishToHost.tcp, ingress.fromTunnel.tcp, ingress.fromTunnel.udp). No SocketBindAllow rules will be applied."
+    ]
+  ) vpnEnabledServiceNames;
 in
 {
   imports = [
@@ -762,6 +929,28 @@ in
                     peer endpoints. Literal IP endpoints remain the secure
                     default.
                   '';
+                };
+
+                endpointPinning = {
+                  enable = mkOption {
+                    type = types.bool;
+                    default = false;
+                    description = ''
+                      Pin WireGuard outer UDP egress to configured literal peer
+                      endpoints using host-side nftables policy in the socket
+                      birthplace namespace path supported by this module.
+                    '';
+                  };
+
+                  fwMark = mkOption {
+                    type = types.nullOr types.ints.unsigned;
+                    default = null;
+                    description = ''
+                      Optional fwMark used to identify WireGuard outer UDP traffic
+                      for endpoint pinning. Null auto-derives a deterministic
+                      non-zero mark from the interface name.
+                    '';
+                  };
                 };
               };
 
@@ -829,6 +1018,16 @@ in
                 };
               };
 
+              publishToHost.tcp = mkOption {
+                type = types.listOf types.port;
+                default = [ ];
+                description = ''
+                  Simplified host publish abstraction for namespace services.
+                  Ports are merged with ingress.fromHost.tcp. Non-empty values
+                  automatically enable effective host-link wiring.
+                '';
+              };
+
               egress = {
                 mode = mkOption {
                   type = types.enum [
@@ -883,15 +1082,54 @@ in
                   description = "Optional hostLink /30 subnet base. Null auto-allocates a deterministic subnet from 169.254.0.0/16.";
                 };
               };
+
+              derived.hostLink = {
+                subnetIPv4 = mkOption {
+                  type = types.nullOr types.str;
+                  readOnly = true;
+                  description = "Computed effective hostLink subnet (/30) for this namespace.";
+                };
+
+                hostAddressIPv4 = mkOption {
+                  type = types.nullOr types.str;
+                  readOnly = true;
+                  description = "Computed host-side IPv4 address for the effective hostLink subnet.";
+                };
+
+                nsAddressIPv4 = mkOption {
+                  type = types.nullOr types.str;
+                  readOnly = true;
+                  description = "Computed namespace-side IPv4 address for the effective hostLink subnet.";
+                };
+              };
             };
 
-            config = mkIf (config.securityProfile == "highAssurance") {
-              dns.mode = mkDefault "strict";
-              dns.allowHostResolverIPC = mkDefault false;
-              egress.mode = mkDefault "allowList";
-              ipv6.mode = mkDefault "disable";
-              wireguard.allowHostnameEndpoints = mkDefault false;
-            };
+            config =
+              let
+                withEffectiveHostLink = config.hostLink.enable || config.publishToHost.tcp != [ ];
+                derivedSubnet =
+                  if config.hostLink.subnetIPv4 != null then
+                    config.hostLink.subnetIPv4
+                  else
+                    vpnLib.hostLinkSubnetFromNamespace name;
+                derivedPair = vpnLib.deriveHostLinkPair derivedSubnet;
+              in
+              mkMerge [
+                (mkIf (config.securityProfile == "highAssurance") {
+                  dns.mode = mkDefault "strict";
+                  dns.allowHostResolverIPC = mkDefault false;
+                  egress.mode = mkDefault "allowList";
+                  ipv6.mode = mkDefault "disable";
+                  wireguard.allowHostnameEndpoints = mkDefault false;
+                })
+                {
+                  derived.hostLink.subnetIPv4 = if withEffectiveHostLink then derivedSubnet else null;
+                  derived.hostLink.hostAddressIPv4 =
+                    if withEffectiveHostLink && derivedPair != null then derivedPair.hostAddressIPv4 else null;
+                  derived.hostLink.nsAddressIPv4 =
+                    if withEffectiveHostLink && derivedPair != null then derivedPair.nsAddressIPv4 else null;
+                }
+              ];
           }
         )
       );
@@ -933,6 +1171,10 @@ in
         message = "Enabled host links must not reuse the same effective hostLink subnet (/30).";
       }
       {
+        assertion = unique endpointPinningMarks == endpointPinningMarks;
+        message = "Enabled endpoint pinning namespaces must not reuse the same effective WireGuard fwMark.";
+      }
+      {
         assertion = builtins.length activeHostLinks <= 16384;
         message = "hostLink auto-allocation supports up to 16384 enabled host links from 169.254.0.0/16.";
       }
@@ -941,10 +1183,11 @@ in
     ++ serviceAssertions
     ++ socketAssertions;
 
-    warnings = rootWarnings ++ namespaceWarnings;
+    warnings = rootWarnings ++ namespaceWarnings ++ restrictBindWarnings;
 
     systemd.services = mkMerge [
       namespaceUnits
+      endpointPinningUnit
       wgDependencyUnits
     ];
     networking.wireguard.interfaces = wireguardAssignments;

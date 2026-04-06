@@ -83,6 +83,10 @@ real deployment.
 - Optional `vpn.restrictBind = true` derives `SocketBindAllow` /
   `SocketBindDeny` from namespace ingress policy as defense in depth for
   service-created listeners when ingress ports are declared.
+- `publishToHost.tcp` is the common-path host ingress abstraction and maps to
+  host-link based ingress behavior.
+- Effective host-link addresses are exported under
+  `services.vpnConfinement.namespaces.<name>.derived.hostLink.*`.
 
 ## Security model
 
@@ -116,6 +120,9 @@ real deployment.
 - Use socket namespace attachment only when the listening socket itself must be
   inside the VPN namespace.
 
+For a practical host reverse-proxy pattern, see
+[`Reverse Proxy`](./guides/reverse-proxy/).
+
 ## Limitations
 
 - Generic HTTPS-based DoH on port 443 is not reliably detectable with simple
@@ -127,8 +134,12 @@ real deployment.
   around them.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
-- WireGuard endpoint pinning is not yet implemented. Pinning the UDP socket path
-  likely requires additional enforcement in the socket birthplace namespace.
+- Endpoint pinning MVP is implemented with
+  `wireguard.endpointPinning.enable = true`.
+- Endpoint pinning currently supports host/init socket birthplace only
+  (`wireguard.socketNamespace = null` or `"init"`).
+- Endpoint pinning requires literal peer endpoints and applies host-side
+  nftables policy keyed by WireGuard fwmark.
 - For strict environments, combine confinement with application policy and
   egress inspection.
 

@@ -93,6 +93,54 @@ _Declared by:_
 
 - [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
 
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.hostAddressIPv4
+
+Computed host-side IPv4 address for the effective hostLink subnet\.
+
+_Type:_ null or string _(read only)_
+
+_Default:_
+
+```nix
+null
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.nsAddressIPv4
+
+Computed namespace-side IPv4 address for the effective hostLink subnet\.
+
+_Type:_ null or string _(read only)_
+
+_Default:_
+
+```nix
+null
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.subnetIPv4
+
+Computed effective hostLink subnet (/30) for this namespace\.
+
+_Type:_ null or string _(read only)_
+
+_Default:_
+
+```nix
+null
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
 ## services\.vpnConfinement\.namespaces\.\<name>\.dns\.allowHostResolverIPC
 
 Allow strict-mode services to reach host resolver helper IPC such as nscd or
@@ -358,6 +406,24 @@ _Declared by:_
 
 - [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
 
+## services\.vpnConfinement\.namespaces\.\<name>\.publishToHost\.tcp
+
+Simplified host publish abstraction for namespace services\. Ports are merged
+with ingress\.fromHost\.tcp\. Non-empty values automatically enable effective
+host-link wiring\.
+
+_Type:_ list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+_Default:_
+
+```nix
+[ ]
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
 ## services\.vpnConfinement\.namespaces\.\<name>\.securityProfile
 
 Opinionated namespace security preset\. “highAssurance” turns weaker
@@ -386,6 +452,42 @@ _Default:_
 
 ```nix
 false
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.endpointPinning\.enable
+
+Pin WireGuard outer UDP egress to configured literal peer endpoints using
+host-side nftables policy in the socket birthplace namespace path supported by
+this module\.
+
+_Type:_ boolean
+
+_Default:_
+
+```nix
+false
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.endpointPinning\.fwMark
+
+Optional fwMark used to identify WireGuard outer UDP traffic for endpoint
+pinning\. Null auto-derives a deterministic non-zero mark from the interface
+name\.
+
+_Type:_ null or (unsigned integer, meaning >=0)
+
+_Default:_
+
+```nix
+null
 ```
 
 _Declared by:_

@@ -26,13 +26,31 @@ export default defineConfig({
       sidebar: [
         {
           label: "Getting Started",
-          items: [{ label: "Overview", slug: "index" }],
+          items: [
+            { label: "Overview", slug: "index" },
+            { label: "Common Deployments", slug: "guides/common-deployments" },
+            { label: "Reverse Proxy", slug: "guides/reverse-proxy" },
+            {
+              label: "Security Profile Matrix",
+              slug: "guides/security-profile-decision-matrix",
+            },
+          ],
         },
         {
           label: "Core Concepts",
           items: [
             { label: "Architecture", slug: "architecture" },
             { label: "Threat Model", slug: "threat-model" },
+          ],
+        },
+        {
+          label: "Advanced",
+          items: [
+            { label: "Advanced Tuning", slug: "guides/advanced-tuning" },
+            {
+              label: "Security Exceptions",
+              slug: "guides/security-exceptions",
+            },
           ],
         },
         {

@@ -126,8 +126,11 @@ Profiles:
 - literal WireGuard endpoints (hostname endpoints rejected)
 - `allowedIPsAsRoutes = true`
 
-Endpoint pinning for the WireGuard UDP socket is not yet implemented; see
-`site/src/content/docs/threat-model.md` for current guarantees and caveats.
+WireGuard endpoint pinning MVP is available with
+`services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`.
+The MVP requires literal peer endpoint IPs and currently supports host/init
+socket birthplace only (`wireguard.socketNamespace = null` or `"init"`). See
+`site/src/content/docs/threat-model.md` for scope and caveats.
 
 ## Development
 

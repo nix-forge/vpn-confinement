@@ -73,10 +73,13 @@ in
               pkgs.writeText "vpn-confinement-${nsName}.nsswitch.conf" (vpnLib.renderNsswitchConf ns.dns)
             else
               null;
-          withHostLink = nsExists && ns.hostLink.enable;
+          withHostLink = nsExists && (ns.hostLink.enable || ns.publishToHost.tcp != [ ]);
           wgIf = if nsExists then ns.wireguard.interface else "wg0";
           allowedBindTcp =
-            if nsExists then unique (ns.ingress.fromHost.tcp ++ ns.ingress.fromTunnel.tcp) else [ ];
+            if nsExists then
+              unique (ns.ingress.fromHost.tcp ++ ns.publishToHost.tcp ++ ns.ingress.fromTunnel.tcp)
+            else
+              [ ];
           allowedBindUdp = if nsExists then unique ns.ingress.fromTunnel.udp else [ ];
           bindAllowRules =
             (map (port: "tcp:${toString port}") allowedBindTcp)

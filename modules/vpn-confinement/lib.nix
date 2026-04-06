@@ -255,6 +255,33 @@ let
     in
     match != null && isLiteralIpv6 (builtins.elemAt match 0) && port != null && isValidPort port;
 
+  parseLiteralEndpoint =
+    value:
+    let
+      ipv4Match = endpointIpv4Match value;
+      ipv6Match = endpointIpv6Match value;
+      ipv4Port = if ipv4Match == null then null else parsePort (builtins.elemAt ipv4Match 1);
+      ipv6Port = if ipv6Match == null then null else parsePort (builtins.elemAt ipv6Match 1);
+      ipv4Address = if ipv4Match == null then null else builtins.elemAt ipv4Match 0;
+      ipv6Address = if ipv6Match == null then null else builtins.elemAt ipv6Match 0;
+    in
+    if ipv4Match != null && isLiteralIpv4 ipv4Address && ipv4Port != null && isValidPort ipv4Port then
+      {
+        family = "ip";
+        address = ipv4Address;
+        port = ipv4Port;
+      }
+    else if
+      ipv6Match != null && isLiteralIpv6 ipv6Address && ipv6Port != null && isValidPort ipv6Port
+    then
+      {
+        family = "ip6";
+        address = ipv6Address;
+        port = ipv6Port;
+      }
+    else
+      null;
+
   hostnameLabelMatch = label: builtins.match "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$" label;
 
   stripOptionalTrailingDot =
@@ -364,6 +391,14 @@ let
       fourth = intMod base 256;
     in
     "169.254.${toString third}.${toString fourth}/30";
+
+  deriveWireguardFwMark =
+    interfaceName:
+    let
+      digest = builtins.hashString "sha256" interfaceName;
+      raw = hexToInt (builtins.substring 0 8 digest);
+    in
+    intMod raw 4294967294 + 1;
 in
 {
   uniquePorts = unique;
@@ -412,6 +447,8 @@ in
 
   isLiteralEndpoint = value: isLiteralIpv4Endpoint value || isLiteralIpv6Endpoint value;
 
+  inherit parseLiteralEndpoint;
+
   inherit isSupportedEndpoint;
 
   endpointIsHostname = isHostnameEndpoint;
@@ -419,6 +456,8 @@ in
   inherit deriveHostLinkPair;
 
   inherit hostLinkSubnetFromNamespace;
+
+  inherit deriveWireguardFwMark;
 
   inherit isValidInterfaceName;
 
