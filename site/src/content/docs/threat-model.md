@@ -18,8 +18,8 @@ compatibility paths, and what remains out of scope.
   compromised host root, or isolation between mutually untrusted services in the
   same namespace.
 
-Read [`Architecture`](./architecture/) alongside this page for the enforcement
-mechanisms, and [`Generated Options Reference`](./reference/options-generated/)
+Read [`Architecture`](../architecture/) alongside this page for the enforcement
+mechanisms, and [`Generated Options Reference`](../reference/options-generated/)
 when you need to map the model to concrete configuration choices.
 
 ## Assets and boundaries
@@ -149,6 +149,6 @@ when you need to map the model to concrete configuration choices.
 
 ## Read next
 
-- [`Architecture`](./architecture/) for the lifecycle and enforcement model.
-- [`Generated Options Reference`](./reference/options-generated/) for the exact
+- [`Architecture`](../architecture/) for the lifecycle and enforcement model.
+- [`Generated Options Reference`](../reference/options-generated/) for the exact
   configuration surface.

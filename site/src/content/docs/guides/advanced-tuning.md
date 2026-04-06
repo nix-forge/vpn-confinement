@@ -40,4 +40,4 @@ Endpoint pinning requires literal endpoints.
 ## Read next
 
 - [`Security Exceptions`](../security-exceptions/)
-- [`Threat Model`](../threat-model/)
+- [`Threat Model`](../../threat-model/)

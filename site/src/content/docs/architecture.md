@@ -17,8 +17,8 @@ for selected systemd services.
   dependent services and sockets.
 
 Use this page to understand the moving parts and lifecycle. Read
-[`Threat Model`](./threat-model/) for explicit guarantees and non-goals, and
-[`Generated Options Reference`](./reference/options-generated/) when tuning a
+[`Threat Model`](../threat-model/) for explicit guarantees and non-goals, and
+[`Generated Options Reference`](../reference/options-generated/) when tuning a
 real deployment.
 
 ## Detailed design
@@ -121,7 +121,7 @@ real deployment.
   inside the VPN namespace.
 
 For a practical host reverse-proxy pattern, see
-[`Reverse Proxy`](./guides/reverse-proxy/).
+[`Reverse Proxy`](../guides/reverse-proxy/).
 
 ## Limitations
 
@@ -166,6 +166,7 @@ For a practical host reverse-proxy pattern, see
 
 ## Read next
 
-- [`Threat Model`](./threat-model/) for guarantees, weaker modes, and non-goals.
-- [`Generated Options Reference`](./reference/options-generated/) for exact
+- [`Threat Model`](../threat-model/) for guarantees, weaker modes, and
+  non-goals.
+- [`Generated Options Reference`](../reference/options-generated/) for exact
   option names and defaults.
