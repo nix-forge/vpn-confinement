@@ -308,7 +308,7 @@ let
     nameValuePair unitName {
       description = "Prepare VPN confinement namespace ${nsName}";
       before = [ "wireguard-${ns.wireguard.interface}.service" ];
-      unitConfig.StopWhenUnneeded = true;
+      partOf = [ "wireguard-${ns.wireguard.interface}.service" ];
       serviceConfig = namespaceUnitHardening // {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -500,7 +500,6 @@ let
       requires = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
       bindsTo = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
       partOf = [ "wireguard-${wg}.service" ];
-      unitConfig.StopWhenUnneeded = true;
       serviceConfig = endpointPinningUnitHardening // {
         Type = "oneshot";
         RemainAfterExit = true;
