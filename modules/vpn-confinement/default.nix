@@ -101,7 +101,6 @@ let
 
   helperUnitHardeningBase = {
     NoNewPrivileges = true;
-    ProtectControlGroups = true;
     LockPersonality = true;
     RestrictSUIDSGID = true;
     SystemCallArchitectures = "native";
