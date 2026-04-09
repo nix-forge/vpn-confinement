@@ -61,6 +61,6 @@
     machine.succeed("nft reset counters table inet vpnc_endpoint_pin_vpnapps")
     machine.succeed("ip netns exec vpnapps wg set wg0 peer bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0= endpoint 203.0.113.7:51820 persistent-keepalive 1")
     machine.succeed("ip netns exec vpnapps sh -c 'printf pin | nc -u -w 1 10.0.0.10 53 || true'")
-    machine.wait_until_succeeds("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'meta mark [0-9]+ udp counter packets [1-9][0-9]* drop'")
+    machine.wait_until_succeeds("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'meta mark [0-9]+( meta l4proto)? udp counter packets [1-9][0-9]*( bytes [0-9]+)? drop'")
   '';
 }
