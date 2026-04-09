@@ -60,7 +60,7 @@ in
         let
           vcfg = rootConfig.services.vpnConfinement;
           nsName = if config.vpn.namespace != null then config.vpn.namespace else vcfg.defaultNamespace;
-          ns = attrByPath [ nsName ] null vcfg.namespaces;
+          ns = if nsName == null then null else attrByPath [ nsName ] null vcfg.namespaces;
           nsExists = ns != null;
           strictDns = nsExists && ns.dns.mode == "strict";
           resolvText =
@@ -102,7 +102,6 @@ in
             wgIf
           ]
           ++ lib.optionals withHostLink [ ns.hostLink.nsIf ];
-          interfaceSet = unique (defaultInterfaceSet ++ config.vpn.extraNetworkInterfaces);
         in
         {
           options.vpn = {
@@ -111,7 +110,7 @@ in
             namespace = mkOption {
               type = types.nullOr types.str;
               default = null;
-              description = "Namespace name override for this service. Leave unset to use services.vpnConfinement.defaultNamespace.";
+              description = "Namespace name override for this service. Leave unset to use services.vpnConfinement.defaultNamespace when one is configured.";
             };
 
             hardeningProfile = mkOption {
@@ -119,7 +118,7 @@ in
                 "baseline"
                 "strict"
               ];
-              default = "baseline";
+              default = if nsExists && ns.securityProfile == "highAssurance" then "strict" else "baseline";
               description = "Service hardening preset applied on top of confinement wiring.";
             };
 
@@ -143,15 +142,9 @@ in
               default = [ ];
               description = "Additional AddressFamily names appended to RestrictAddressFamilies for this service.";
             };
-
-            extraNetworkInterfaces = mkOption {
-              type = types.listOf types.str;
-              default = [ ];
-              description = "Additional interface names appended to RestrictNetworkInterfaces for this service.";
-            };
           };
 
-          config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
+          config = mkIf (vcfg.enable && config.vpn.enable && nsName != null) (mkMerge [
             {
               after = [ "vpn-confinement-netns@${nsName}.service" ];
               requires = [ "vpn-confinement-netns@${nsName}.service" ];
@@ -159,7 +152,7 @@ in
               serviceConfig = hardeningBaseline // {
                 NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
-                RestrictNetworkInterfaces = mkDefault interfaceSet;
+                RestrictNetworkInterfaces = mkDefault defaultInterfaceSet;
               };
             }
             (mkIf nsExists {

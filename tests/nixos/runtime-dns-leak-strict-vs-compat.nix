@@ -10,7 +10,6 @@
 
     services.vpnConfinement = {
       enable = true;
-      defaultNamespace = "ns-strict";
       namespaces = {
         ns-strict = {
           enable = true;
@@ -100,6 +99,7 @@
     };
 
     environment.systemPackages = [
+      pkgs.netcat-openbsd
       pkgs.nftables
       pkgs.iproute2
     ];
@@ -107,8 +107,8 @@
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
-    machine.wait_for_unit("vpn-confinement-netns@ns-strict.service")
-    machine.wait_for_unit("vpn-confinement-netns@ns-compat.service")
+    machine.wait_until_succeeds("ip netns list | grep -q '^ns-strict\\b'")
+    machine.wait_until_succeeds("ip netns list | grep -q '^ns-compat\\b'")
     machine.wait_for_unit("wireguard-wg-strict.service")
     machine.wait_for_unit("wireguard-wg-compat.service")
 
@@ -120,5 +120,15 @@
     machine.succeed("ip netns exec ns-strict nft list table inet vpnc | grep -q 'tcp dport @dns_blocked_ports drop'")
 
     machine.fail("ip netns exec ns-compat nft list table inet vpnc | grep -q 'set dns_blocked_ports'")
+
+    machine.succeed("ip netns exec ns-strict nft insert rule inet vpnc output meta nftrace set 1")
+    machine.succeed("rm -f /tmp/ns-strict.trace")
+    machine.succeed("sh -c 'timeout 3 ip netns exec ns-strict nft monitor trace >/tmp/ns-strict.trace 2>&1 & mon=$!; sleep 1; ip netns exec ns-strict sh -c \"printf dns | nc -u -w 1 198.51.100.53 53 || true\"; wait $mon || true'")
+    machine.succeed("grep -q 'verdict drop' /tmp/ns-strict.trace")
+
+    machine.succeed("ip netns exec ns-compat nft insert rule inet vpnc output meta nftrace set 1")
+    machine.succeed("rm -f /tmp/ns-compat.trace")
+    machine.succeed("sh -c 'timeout 3 ip netns exec ns-compat nft monitor trace >/tmp/ns-compat.trace 2>&1 & mon=$!; sleep 1; ip netns exec ns-compat sh -c \"printf dns | nc -u -w 1 198.51.100.53 53 || true\"; wait $mon || true'")
+    machine.succeed("grep -q 'verdict accept' /tmp/ns-compat.trace")
   '';
 }

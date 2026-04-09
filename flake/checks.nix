@@ -10,6 +10,7 @@ _: {
         endpoint-pinning-custom-socket-namespace = ../tests/nixos/endpoint-pinning-custom-socket-namespace.nix;
         endpoint-pinning-mvp = ../tests/nixos/endpoint-pinning-mvp.nix;
         high-assurance-root-optout = ../tests/nixos/high-assurance-root-optout.nix;
+        long-namespace-generated-hostlink = ../tests/nixos/long-namespace-generated-hostlink.nix;
         multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
         publish-to-host-abstraction = ../tests/nixos/publish-to-host-abstraction.nix;
         restrict-bind-effective-ingress = ../tests/nixos/restrict-bind-effective-ingress.nix;
@@ -17,6 +18,7 @@ _: {
       };
 
       runtimeTests = {
+        vm-endpoint-pinning-drop = ../tests/nixos/runtime-endpoint-pinning-drop.nix;
         vm-ip-leak-fail-closed = ../tests/nixos/runtime-ip-leak-fail-closed.nix;
         vm-dns-leak-strict-vs-compat = ../tests/nixos/runtime-dns-leak-strict-vs-compat.nix;
         vm-fail-closed-tunnel-drop = ../tests/nixos/runtime-fail-closed-tunnel-drop.nix;
@@ -26,8 +28,10 @@ _: {
         reject-dns-search-input = ../tests/nixos/reject-dns-search-input.nix;
         reject-endpoint-pinning-hostname-endpoints = ../tests/nixos/reject-endpoint-pinning-hostname-endpoints.nix;
         reject-high-assurance-empty-allowed-cidrs = ../tests/nixos/reject-high-assurance-empty-allowed-cidrs.nix;
+        reject-high-assurance-inline-private-key = ../tests/nixos/reject-high-assurance-inline-private-key.nix;
         reject-high-assurance-root-service = ../tests/nixos/reject-high-assurance-root-service.nix;
         reject-high-assurance-weakeners = ../tests/nixos/reject-high-assurance-weakeners.nix;
+        reject-missing-namespace-selection = ../tests/nixos/reject-missing-namespace-selection.nix;
         reject-manual-service-namespace = ../tests/nixos/reject-manual-service-namespace.nix;
         reject-hostname-wireguard-endpoints = ../tests/nixos/reject-hostname-wireguard-endpoints.nix;
         reject-hostname-endpoint-without-refresh = ../tests/nixos/reject-hostname-endpoint-without-refresh.nix;
@@ -114,6 +118,12 @@ _: {
       publishNs = publishCfg.services.vpnConfinement.namespaces.vpnapps;
       publishServiceUnit = publishCfg.systemd.services."vpn-confinement-netns@vpnapps";
 
+      longHostLinkCfg = evalNode scenarioTests.long-namespace-generated-hostlink;
+      longHostLinkNs =
+        longHostLinkCfg.services.vpnConfinement.namespaces.this-namespace-name-is-deliberately-long-for-hostlink;
+      longHostLinkUnit =
+        longHostLinkCfg.systemd.services."vpn-confinement-netns@this-namespace-name-is-deliberately-long-for-hostlink";
+
       restrictBindCfg = evalNode scenarioTests.restrict-bind-effective-ingress;
       restrictBindService = restrictBindCfg.systemd.services.restrict-bind-probe.serviceConfig;
     in
@@ -170,6 +180,8 @@ _: {
               rootOptoutService.serviceConfig.NetworkNamespacePath == "/run/netns/vpnapps"
               && contains "vpn-confinement-netns@vpnapps.service" rootOptoutService.bindsTo
               && contains "wireguard-wg0.service" rootOptoutService.bindsTo
+              && rootOptoutService.serviceConfig.ProtectSystem == "strict"
+              && rootOptoutService.serviceConfig.ProtectHome
             )
             "high-assurance root opt-out evaluation did not preserve expected namespace attachment and dependency wiring";
 
@@ -198,9 +210,20 @@ _: {
           && publishNs.derived.hostLink.subnetIPv4 != null
           && publishNs.derived.hostLink.hostAddressIPv4 != null
           && publishNs.derived.hostLink.nsAddressIPv4 != null
-          && builtins.match ".*ve-vpnapps-host.*" publishServiceUnit.script != null
-          && builtins.match ".*ip addr replace .* dev ve-vpnapps-host.*" publishServiceUnit.script != null
+          && publishServiceUnit.serviceConfig.NoNewPrivileges
+          && builtins.stringLength publishNs.hostLink.hostIf <= 15
+          && builtins.stringLength publishNs.hostLink.nsIf <= 15
+          && builtins.match ".*${publishNs.hostLink.hostIf}.*" publishServiceUnit.script != null
+          && builtins.match ".*${publishNs.hostLink.nsIf}.*" publishServiceUnit.script != null
         ) "publishToHost evaluation did not expose derived hostLink values or host ingress wiring";
+
+        long-namespace-generated-hostlink = mkEvalAssertCheck "long-namespace-generated-hostlink" (
+          builtins.stringLength longHostLinkNs.hostLink.hostIf <= 15
+          && builtins.stringLength longHostLinkNs.hostLink.nsIf <= 15
+          && longHostLinkNs.hostLink.hostIf != longHostLinkNs.hostLink.nsIf
+          && builtins.match ".*${longHostLinkNs.hostLink.hostIf}.*" longHostLinkUnit.script != null
+          && builtins.match ".*${longHostLinkNs.hostLink.nsIf}.*" longHostLinkUnit.script != null
+        ) "long namespace host-link evaluation did not generate deterministic Linux-safe interface names";
 
         restrict-bind-effective-ingress = mkEvalAssertCheck "restrict-bind-effective-ingress" (
           contains "tcp:8080" restrictBindService.SocketBindAllow

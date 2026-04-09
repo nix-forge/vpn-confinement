@@ -10,12 +10,15 @@
 
     services.vpnConfinement = {
       enable = true;
-      defaultNamespace = "media";
       namespaces = {
         media = {
           enable = true;
           wireguard.interface = "wg-media";
-          hostLink.enable = true;
+          hostLink = {
+            enable = true;
+            hostIf = "ve-media-host";
+            nsIf = "ve-media-ns";
+          };
           dns = {
             mode = "strict";
             servers = [ "10.64.0.1" ];
@@ -24,7 +27,11 @@
         apps = {
           enable = true;
           wireguard.interface = "wg-apps";
-          hostLink.enable = true;
+          hostLink = {
+            enable = true;
+            hostIf = "ve-apps-host";
+            nsIf = "ve-apps-ns";
+          };
           dns = {
             mode = "strict";
             servers = [ "10.64.0.1" ];

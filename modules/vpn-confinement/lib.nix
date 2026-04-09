@@ -392,6 +392,15 @@ let
     in
     "169.254.${toString third}.${toString fourth}/30";
 
+  deriveHostLinkInterfaceName =
+    role: namespaceName:
+    let
+      prefix = if role == "host" then "vh-" else "vn-";
+      digest = builtins.hashString "sha256" "${role}:${namespaceName}";
+      suffixLength = 15 - builtins.stringLength prefix;
+    in
+    "${prefix}${builtins.substring 0 suffixLength digest}";
+
   deriveWireguardFwMark =
     interfaceName:
     let
@@ -414,6 +423,8 @@ in
   inherit isLiteralIpv4;
 
   inherit isLiteralIpv4Slash30;
+
+  inherit deriveHostLinkInterfaceName;
 
   inherit isLiteralIpv6;
 

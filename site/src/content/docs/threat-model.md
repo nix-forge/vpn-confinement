@@ -13,7 +13,8 @@ compatibility paths, and what remains out of scope.
   classic DNS leak resistance in `dns.mode = "strict"`, and IPv6 fail-closed by
   default.
 - Stronger mode: `securityProfile = "highAssurance"` requires strict DNS,
-  destination-constrained egress, and non-root service execution by default.
+  destination-constrained egress, stricter secret handling, and non-root service
+  execution by default.
 - Not covered by default: arbitrary DoH or DoQ over generic allowed egress,
   compromised host root, or isolation between mutually untrusted services in the
   same namespace.
@@ -46,6 +47,8 @@ when you need to map the model to concrete configuration choices.
   `853`, `5353`, `5355`) except for configured resolvers.
 - High assurance means strict DNS plus destination-constrained allowlisting
   (`egress.mode = "allowList"` with tightly scoped `allowedCidrs`).
+- Allowlist mode keeps narrow ICMP / ICMPv6 error traffic for PMTU and basic
+  control-plane reliability when destination CIDRs are configured.
 - IPv6 is fail-closed by default unless explicitly tunneled.
 - Listener exposure is namespace-scoped first, with optional service-level bind
   restrictions as defense in depth.
@@ -76,6 +79,9 @@ when you need to map the model to concrete configuration choices.
   communication path.
 - `securityProfile = "highAssurance"` rejects `dns.allowHostResolverIPC = true`,
   `wireguard.allowHostnameEndpoints = true`, and `allowedIPsAsRoutes = false`.
+- `securityProfile = "highAssurance"` rejects inline
+  `networking.wireguard.interfaces.<if>.privateKey`; use `privateKeyFile` or
+  `generatePrivateKeyFile` instead.
 - `securityProfile = "highAssurance"` also requires destination-constrained
   egress (`egress.allowedCidrs` must be non-empty) and non-root service
   execution by default (unless a service sets
@@ -120,6 +126,10 @@ when you need to map the model to concrete configuration choices.
   DNS-like egress, but applications can still implement their own encrypted DNS
   over generic allowed destinations unless `egress.mode = "allowList"` is used
   with constrained CIDRs.
+- The runtime suite includes packet-level checks for blocked host-link leakage
+  and strict-vs-compat DNS behavior, but this should still be read as evidence
+  of the intended boundary rather than a claim that every exfiltration technique
+  is impossible.
 - `dns.mode = "strict"` should be read as "common resolver leak resistance", not
   as a blanket claim that all DNS exfiltration paths are eliminated.
 - Service bind restrictions are supplemental hardening only; nftables remains

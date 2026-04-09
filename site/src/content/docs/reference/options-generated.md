@@ -36,15 +36,15 @@ _Declared by:_
 
 ## services\.vpnConfinement\.defaultNamespace
 
-Default namespace name used by vpn-enabled services and sockets when they do not
-set vpn\.namespace\.
+Optional default namespace name used by vpn-enabled services and sockets when
+they do not set vpn\.namespace\.
 
-_Type:_ string
+_Type:_ null or string
 
 _Default:_
 
 ```nix
-"vpnapps"
+null
 ```
 
 _Declared by:_
@@ -60,11 +60,7 @@ _Type:_ attribute set of (submodule)
 _Default:_
 
 ```nix
-{
-  vpnapps = {
-    enable = true;
-  };
-}
+{ }
 ```
 
 _Declared by:_
@@ -209,6 +205,23 @@ _Declared by:_
 
 - [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
 
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowEssentialIcmp
+
+Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when
+allowedCidrs are configured\.
+
+_Type:_ boolean
+
+_Default:_
+
+```nix
+true
+```
+
+_Declared by:_
+
+- [\<nixpkgs/modules/vpn-confinement/default\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/default.nix)
+
 ## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowedCidrs
 
 Allowed destination CIDRs (or literal IPs) for allowList mode\. Required in
@@ -300,7 +313,7 @@ _Type:_ string
 _Default:_
 
 ```nix
-"ve-‹name›-host"
+"vh-f34280bd2454"
 ```
 
 _Declared by:_
@@ -316,7 +329,7 @@ _Type:_ string
 _Default:_
 
 ```nix
-"ve-‹name›-ns"
+"vn-7a41d7c9e29c"
 ```
 
 _Declared by:_
@@ -583,23 +596,6 @@ _Declared by:_
 
 - [\<nixpkgs/modules/vpn-confinement/service-extension\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/service-extension.nix)
 
-## systemd\.services\.\<name>\.vpn\.extraNetworkInterfaces
-
-Additional interface names appended to RestrictNetworkInterfaces for this
-service\.
-
-_Type:_ list of string
-
-_Default:_
-
-```nix
-[ ]
-```
-
-_Declared by:_
-
-- [\<nixpkgs/modules/vpn-confinement/service-extension\.nix>](https://github.com/NixOS/nixpkgs/blob//modules/vpn-confinement/service-extension.nix)
-
 ## systemd\.services\.\<name>\.vpn\.hardeningProfile
 
 Service hardening preset applied on top of confinement wiring\.
@@ -619,7 +615,7 @@ _Declared by:_
 ## systemd\.services\.\<name>\.vpn\.namespace
 
 Namespace name override for this service\. Leave unset to use
-services\.vpnConfinement\.defaultNamespace\.
+services\.vpnConfinement\.defaultNamespace when one is configured\.
 
 _Type:_ null or string
 
@@ -675,7 +671,7 @@ _Declared by:_
 ## systemd\.sockets\.\<name>\.vpn\.namespace
 
 Namespace name override for this socket\. Leave unset to use
-services\.vpnConfinement\.defaultNamespace\.
+services\.vpnConfinement\.defaultNamespace when one is configured\.
 
 _Type:_ null or string
 

@@ -63,7 +63,6 @@ Add the module and opt specific services into confinement:
 
   services.vpnConfinement = {
     enable = true;
-    defaultNamespace = "vpnapps";
     namespaces.vpnapps = {
       enable = true;
       wireguard.interface = "wg0";
@@ -90,10 +89,18 @@ Add the module and opt specific services into confinement:
 
   systemd.services.my-service = {
     serviceConfig.DynamicUser = true;
-    vpn.enable = true;
+    vpn = {
+      enable = true;
+      namespace = "vpnapps";
+    };
   };
 }
 ```
+
+By default, namespace selection is explicit. Set `vpn.namespace` on each
+confined service or socket, or configure
+`services.vpnConfinement.defaultNamespace` if you intentionally want one shared
+default.
 
 For exact option names and defaults, start with the generated options reference
 in `site/src/content/docs/reference/options-generated.md`.
@@ -113,7 +120,8 @@ in `site/src/content/docs/reference/options-generated.md`.
 Profiles:
 
 - `balanced`: secure defaults with explicit compatibility escape hatches.
-- `highAssurance`: stricter assertions and destination-constrained egress.
+- `highAssurance`: the strict preset with stronger service hardening defaults
+  and stricter secret handling.
 
 `highAssurance` requires:
 
@@ -125,6 +133,7 @@ Profiles:
   `systemd.services.<name>.vpn.allowRootInHighAssurance = true`
 - literal WireGuard endpoints (hostname endpoints rejected)
 - `allowedIPsAsRoutes = true`
+- no inline `networking.wireguard.interfaces.<if>.privateKey`
 
 WireGuard endpoint pinning is available with
 `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`. It
@@ -132,6 +141,10 @@ requires literal peer endpoint IPs and enforces in the effective WireGuard
 socket birthplace namespace (`init` by default, or custom
 `wireguard.socketNamespace` when configured). See
 `site/src/content/docs/threat-model.md` for scope and caveats.
+
+`highAssurance` rejects inline WireGuard private keys because they land in the
+world-readable Nix store. Use `privateKeyFile` or `generatePrivateKeyFile`
+instead.
 
 ## Development
 

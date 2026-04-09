@@ -1,24 +1,19 @@
 _: {
-  name = "reject-high-assurance-root-service";
+  name = "long-namespace-generated-hostlink";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "reject-high-assurance-root-service";
+    networking.hostName = "long-namespace-generated-hostlink";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
-      namespaces.vpnapps = {
+      namespaces.this-namespace-name-is-deliberately-long-for-hostlink = {
         enable = true;
-        securityProfile = "highAssurance";
         wireguard.interface = "wg0";
+        publishToHost.tcp = [ 8080 ];
         dns.servers = [ "10.64.0.1" ];
-        egress = {
-          mode = "allowList";
-          allowedCidrs = [ "1.1.1.1/32" ];
-          allowedTcpPorts = [ 443 ];
-        };
       };
     };
 
@@ -32,17 +27,6 @@ _: {
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];
-    };
-
-    systemd.services.rooty = {
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "/run/current-system/sw/bin/true";
-      };
-      vpn = {
-        enable = true;
-        namespace = "vpnapps";
-      };
     };
   };
 }

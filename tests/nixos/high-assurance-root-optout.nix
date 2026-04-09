@@ -41,6 +41,7 @@ _: {
       };
       vpn = {
         enable = true;
+        namespace = "vpnapps";
         allowRootInHighAssurance = true;
       };
     };

@@ -16,6 +16,8 @@
         hostLink = {
           enable = true;
           subnetIPv4 = "10.231.0.0/30";
+          hostIf = "ve-vpnapps-host";
+          nsIf = "ve-vpnapps-ns";
         };
         dns = {
           mode = "strict";
@@ -59,17 +61,20 @@
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn.enable = true;
+      vpn.namespace = "vpnapps";
     };
 
     environment.systemPackages = [
       pkgs.iproute2
       pkgs.nftables
+      pkgs.netcat-openbsd
+      pkgs.tcpdump
     ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
-    machine.wait_for_unit("vpn-confinement-netns@vpnapps.service")
+    machine.wait_until_succeeds("ip netns list | grep -q '^vpnapps\\b'")
     machine.wait_for_unit("wireguard-wg0.service")
     machine.wait_for_unit("netns-probe.service")
 
@@ -81,5 +86,12 @@
 
     machine.succeed("ip netns exec vpnapps nft list chain inet vpnc output | grep -q 'policy drop'")
     machine.succeed("ip netns exec vpnapps nft list chain inet vpnc output | grep -q 'oifname \"wg0\" accept'")
+
+    machine.succeed("rm -f /tmp/vpnapps-hostlink.pcap /tmp/vpnapps-hostlink.exit")
+    machine.succeed("sh -c 'timeout 2 tcpdump -c 1 -n -i ve-vpnapps-host tcp port 8080 >/tmp/vpnapps-hostlink.pcap 2>&1; printf %s $? >/tmp/vpnapps-hostlink.exit' >/dev/null 2>&1 &")
+    machine.succeed("ip netns exec vpnapps sh -c 'printf leak | nc -w 1 10.231.0.1 8080 || true'")
+    machine.wait_until_succeeds("test -e /tmp/vpnapps-hostlink.exit")
+    machine.succeed("grep -q '^124$' /tmp/vpnapps-hostlink.exit")
+    machine.fail("grep -q '10.231.0.2' /tmp/vpnapps-hostlink.pcap")
   '';
 }

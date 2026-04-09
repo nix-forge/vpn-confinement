@@ -1,10 +1,10 @@
 _: {
-  name = "reject-high-assurance-root-service";
+  name = "reject-high-assurance-inline-private-key";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "reject-high-assurance-root-service";
+    networking.hostName = "reject-high-assurance-inline-private-key";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -23,7 +23,7 @@ _: {
     };
 
     networking.wireguard.interfaces.wg0 = {
-      privateKeyFile = "/run/wg-test/private.key";
+      privateKey = "not-a-real-key";
       ips = [ "10.71.216.231/32" ];
       peers = [
         {
@@ -32,17 +32,6 @@ _: {
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];
-    };
-
-    systemd.services.rooty = {
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "/run/current-system/sw/bin/true";
-      };
-      vpn = {
-        enable = true;
-        namespace = "vpnapps";
-      };
     };
   };
 }

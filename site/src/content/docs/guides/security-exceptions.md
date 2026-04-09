@@ -27,9 +27,17 @@ application behavior.
 - This is expected for admin UIs/reverse proxies, but it expands attack surface
   compared to no host ingress.
 
+`publishToHost.tcp` is the common-path abstraction. Raw `hostLink.*` tuning is
+for advanced deployments only.
+
 ## High-assurance behavior
 
 `securityProfile = "highAssurance"` rejects multiple weaker paths by design.
+
+- `dns.allowHostResolverIPC = true`
+- `wireguard.allowHostnameEndpoints = true`
+- inline `networking.wireguard.interfaces.<if>.privateKey`
+- `allowedIPsAsRoutes = false`
 
 Use this profile when compatibility trade-offs are acceptable and
 destination-constrained policy is required.

@@ -11,7 +11,6 @@ _: {
 
       services.vpnConfinement = {
         enable = true;
-        defaultNamespace = "ns-strict";
         namespaces = {
           ns-strict = {
             enable = true;

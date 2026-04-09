@@ -25,6 +25,8 @@ real deployment.
 
 - Services opt in with `systemd.services.<name>.vpn.enable = true`.
 - Socket units opt in with `systemd.sockets.<name>.vpn.enable = true`.
+- In the common path, each vpn-enabled service or socket sets `vpn.namespace`
+  explicitly.
 - Per-service behavior config is limited to namespace attachment and hardening;
   network policy is namespace-level.
 - `services.vpnConfinement.namespaces.<name>.securityProfile` provides a small,
@@ -53,8 +55,13 @@ real deployment.
 - `securityProfile = "highAssurance"` defaults `egress.mode = "allowList"` and
   rejects weaker compatibility paths such as hostname endpoints or host resolver
   IPC.
+- `securityProfile = "highAssurance"` also rejects inline
+  `networking.wireguard.interfaces.<if>.privateKey`; use `privateKeyFile` or
+  `generatePrivateKeyFile` instead.
 - `securityProfile = "highAssurance"` requires non-empty `egress.allowedCidrs`
   so outbound policy remains destination-constrained.
+- In allowlist mode, narrow ICMP / ICMPv6 error traffic is still permitted for
+  PMTU and control-plane reliability when destination CIDRs are configured.
 - Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
   (`hosts: files myhostname dns`) into confined services while hiding resolver
   helper paths.
@@ -108,6 +115,8 @@ real deployment.
   `dns.allowHostResolverIPC = false` (or equivalent unit-local restrictions).
 - Bind restrictions are supplemental hardening only; nftables remains the
   primary policy mechanism.
+- Advanced knobs such as `wireguard.socketNamespace` and manual `hostLink.*`
+  tuning are optional escape hatches, not the primary deployment path.
 - vpn-enabled services and sockets must not manually set namespace attachment
   controls that conflict with module-managed `NetworkNamespacePath` behavior.
 

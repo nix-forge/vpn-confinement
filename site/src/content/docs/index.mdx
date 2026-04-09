@@ -22,16 +22,20 @@ Use `vpn-confinement` when you want to:
 
 - The trust boundary is the namespace, not the individual service.
 - Confinement uses namespace-local nftables policy and generated resolver files.
+- In the common path, set `vpn.namespace` explicitly on each confined service or
+  socket.
 - `dns.mode = "strict"` is intended to reduce classic resolver leak paths, not
   to guarantee that all DNS exfiltration techniques are impossible.
-- `securityProfile = "highAssurance"` is the stricter mode for
+- `securityProfile = "balanced"` is the normal secure mode.
+- `securityProfile = "highAssurance"` is the strict preset for
   destination-constrained egress and stronger assertions.
 
 ## Typical setup
 
 1. Import the module and enable `services.vpnConfinement`.
-2. Define a namespace with a WireGuard interface and DNS policy.
-3. Opt specific services or sockets into that namespace.
+2. Define one namespace per trust domain with a WireGuard interface and DNS
+   policy.
+3. Opt specific services or sockets into a namespace with `vpn.namespace`.
 
 Use the [`Generated Options`](../reference/options-generated/) reference for
 exact option names, defaults, and configuration details.
@@ -48,6 +52,12 @@ Use advanced options only when you have a clear compatibility requirement:
 
 - [`Advanced Tuning`](../guides/advanced-tuning/)
 - [`Security Exceptions`](../guides/security-exceptions/)
+
+Advanced-only examples:
+
+- `wireguard.socketNamespace`
+- raw `hostLink.*` tuning
+- hostname endpoints
 
 ## Read next
 

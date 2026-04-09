@@ -13,8 +13,12 @@
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        hostLink.enable = true;
-        hostLink.subnetIPv4 = "10.231.0.0/30";
+        hostLink = {
+          enable = true;
+          subnetIPv4 = "10.231.0.0/30";
+          hostIf = "ve-vpnapps-host";
+          nsIf = "ve-vpnapps-ns";
+        };
         ingress.fromHost.tcp = [ 8080 ];
         dns = {
           mode = "strict";
@@ -57,6 +61,7 @@
         ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
       vpn.enable = true;
+      vpn.namespace = "vpnapps";
     };
 
     systemd.services.netns-echo-strict = {
@@ -68,6 +73,7 @@
       };
       vpn = {
         enable = true;
+        namespace = "vpnapps";
         hardeningProfile = "strict";
       };
     };
@@ -82,6 +88,7 @@
       };
       vpn = {
         enable = true;
+        namespace = "vpnapps";
         hardeningProfile = "strict";
       };
     };

@@ -9,6 +9,7 @@ These settings are for advanced deployments. Start with the common path first.
 
 - `wireguard.socketNamespace`
 - `wireguard.allowHostnameEndpoints`
+- manual `hostLink.hostIf` / `hostLink.nsIf`
 - `hostLink.subnetIPv4`
 - `dns.mode = "compat"`
 - `dns.allowHostResolverIPC = true`
@@ -27,8 +28,14 @@ effective socket birthplace namespace (`init` by default or a custom
 By default, host-link subnets are deterministic `/30` allocations from
 `169.254.0.0/16`.
 
+The default host-link interface names are also deterministic and automatically
+kept within Linux's 15-character interface-name limit.
+
 Set `hostLink.subnetIPv4` only when you need stable coordination with external
 host policy, monitoring, or strict inventory requirements.
+
+Override `hostLink.hostIf` or `hostLink.nsIf` only when you must align with
+existing host tooling.
 
 ## Hostname endpoints
 

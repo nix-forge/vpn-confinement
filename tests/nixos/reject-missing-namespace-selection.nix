@@ -1,10 +1,10 @@
 _: {
-  name = "reject-manual-service-namespace";
+  name = "reject-missing-namespace-selection";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "reject-manual-service-namespace";
+    networking.hostName = "reject-missing-namespace-selection";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
@@ -12,10 +12,7 @@ _: {
       namespaces.vpnapps = {
         enable = true;
         wireguard.interface = "wg0";
-        dns = {
-          mode = "strict";
-          servers = [ "10.64.0.1" ];
-        };
+        dns.servers = [ "10.64.0.1" ];
       };
     };
 
@@ -31,17 +28,13 @@ _: {
       ];
     };
 
-    systemd.services.manual-netns = {
+    systemd.services.missing-namespace = {
       serviceConfig = {
         Type = "oneshot";
+        DynamicUser = true;
         ExecStart = "/run/current-system/sw/bin/true";
-        NetworkNamespacePath = "/run/netns/custom";
       };
-      unitConfig.JoinsNamespaceOf = [ "other.service" ];
-      vpn = {
-        enable = true;
-        namespace = "vpnapps";
-      };
+      vpn.enable = true;
     };
   };
 }

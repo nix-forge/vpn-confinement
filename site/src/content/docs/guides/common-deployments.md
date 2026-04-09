@@ -8,6 +8,7 @@ This page is the fast path for most operators.
 ## Recommended baseline
 
 - Use one namespace per trust domain.
+- Set `vpn.namespace` explicitly on each confined service or socket.
 - Keep `dns.mode = "strict"`.
 - Keep `ipv6.mode = "disable"` unless your tunnel is explicitly IPv6-ready.
 - Keep literal WireGuard peer endpoints.
@@ -28,6 +29,11 @@ services.vpnConfinement.namespaces.vpnapps = {
     mode = "strict";
     servers = [ "10.64.0.1" ];
   };
+};
+
+systemd.services.my-app.vpn = {
+  enable = true;
+  namespace = "vpnapps";
 };
 ```
 
@@ -60,6 +66,16 @@ Endpoint pinning behavior:
 - Uses a WireGuard fwmark selector and nftables policy in that birthplace
   namespace to allow only configured endpoint tuples.
 - Hostname endpoints are rejected when pinning is enabled.
+
+## High-assurance path
+
+Use `securityProfile = "highAssurance"` when you want the strict preset.
+
+- It defaults vpn-enabled services in that namespace to strict service
+  hardening.
+- It rejects inline WireGuard private keys; use `privateKeyFile` or
+  `generatePrivateKeyFile`.
+- It requires destination-constrained allowlisting.
 
 ## Read next
 

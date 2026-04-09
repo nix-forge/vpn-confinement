@@ -99,6 +99,29 @@ let
     5355
   ];
 
+  helperUnitHardeningBase = {
+    NoNewPrivileges = true;
+    ProtectControlGroups = true;
+    LockPersonality = true;
+    RestrictSUIDSGID = true;
+    SystemCallArchitectures = "native";
+    AmbientCapabilities = [ ];
+  };
+
+  namespaceUnitHardening = helperUnitHardeningBase // {
+    CapabilityBoundingSet = [
+      "CAP_NET_ADMIN"
+      "CAP_SYS_ADMIN"
+    ];
+  };
+
+  endpointPinningUnitHardening = helperUnitHardeningBase // {
+    PrivateTmp = true;
+    ProtectSystem = "strict";
+    ProtectHome = true;
+    CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+  };
+
   mkNftSet =
     name: typeName: withInterval: elements:
     if elements == [ ] then
@@ -173,6 +196,19 @@ let
       allowedCidrs = unique ns.egress.allowedCidrs;
       cidrs = vpnLib.splitCidrs allowedCidrs;
 
+      essentialIcmpRules =
+        if !(ns.egress.allowEssentialIcmp && allowedCidrs != [ ]) then
+          ""
+        else
+          concatMapStringsSep "\n" (rule: rule) (
+            lib.optionals (cidrs.ipv4 != [ ]) [
+              ''oifname "${ns.wireguard.interface}" ip daddr @allowed_ipv4_cidrs icmp type { destination-unreachable, time-exceeded, parameter-problem } accept''
+            ]
+            ++ lib.optionals (cidrs.ipv6 != [ ]) [
+              ''oifname "${ns.wireguard.interface}" ip6 daddr @allowed_ipv6_cidrs icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept''
+            ]
+          );
+
       mkPortRule =
         proto: ports:
         if ports == [ ] then
@@ -203,6 +239,7 @@ let
           );
     in
     ''
+      ${essentialIcmpRules}
       ${mkPortRule "tcp" allowedTcp}
       ${mkPortRule "udp" allowedUdp}
       ${cidrOnlyRules}
@@ -272,7 +309,7 @@ let
       description = "Prepare VPN confinement namespace ${nsName}";
       before = [ "wireguard-${ns.wireguard.interface}.service" ];
       unitConfig.StopWhenUnneeded = true;
-      serviceConfig = {
+      serviceConfig = namespaceUnitHardening // {
         Type = "oneshot";
         RemainAfterExit = true;
       };
@@ -430,7 +467,7 @@ let
       );
       policyRules = concatMapStringsSep "\n" (
         spec:
-        "meta mark ${toString mark} udp ${spec.family} daddr ${spec.address} udp dport ${toString spec.port} accept"
+        "meta mark ${toString mark} ${spec.family} daddr ${spec.address} udp dport ${toString spec.port} counter accept"
       ) endpointSpecs;
       socketBirthplace =
         if ns.wireguard.socketNamespace == null || ns.wireguard.socketNamespace == "init" then
@@ -448,7 +485,7 @@ let
           chain output {
             type filter hook output priority filter; policy accept;
             ${policyRules}
-            meta mark ${toString mark} udp drop
+            meta mark ${toString mark} meta l4proto udp counter drop
           }
         }
       '';
@@ -464,7 +501,7 @@ let
       bindsTo = lib.optionals birthplaceManaged [ "vpn-confinement-netns@${socketBirthplace}.service" ];
       partOf = [ "wireguard-${wg}.service" ];
       unitConfig.StopWhenUnneeded = true;
-      serviceConfig = {
+      serviceConfig = endpointPinningUnitHardening // {
         Type = "oneshot";
         RemainAfterExit = true;
       };
@@ -585,6 +622,13 @@ let
       {
         assertion = !highAssurance || !ns.wireguard.allowHostnameEndpoints;
         message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects wireguard.allowHostnameEndpoints = true; use literal peer endpoint IPs instead.";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || !highAssurance
+          || (config.networking.wireguard.interfaces.${wg}.privateKey or null) == null;
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects networking.wireguard.interfaces.${wg}.privateKey because inline secrets land in the Nix store. Use privateKeyFile or generatePrivateKeyFile instead.";
       }
       {
         assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
@@ -738,26 +782,34 @@ let
     serviceName:
     let
       nsName = nsFor serviceName;
+      nsDisplay = if nsName == null then "<unset>" else nsName;
       service = config.systemd.services.${serviceName};
-      ns = attrByPath [ nsName ] null cfg.namespaces;
+      ns = if nsName == null then null else attrByPath [ nsName ] null cfg.namespaces;
       highAssurance = ns != null && ns.securityProfile == "highAssurance";
       serviceConfig = service.serviceConfig or { };
       user = serviceConfig.User or null;
       dynamicUser = serviceConfig.DynamicUser or false;
       rootLike = user == null || user == "" || user == "root" || user == "0";
+      expectedNamespacePath = if nsName == null then "/run/netns/<namespace>" else namespacePath nsName;
     in
     [
       {
-        assertion = builtins.hasAttr nsName cfg.namespaces;
-        message = "systemd.services.${serviceName}.vpn.namespace references unknown namespace ${nsName}.";
+        assertion = nsName != null;
+        message = "systemd.services.${serviceName}.vpn.enable requires vpn.namespace to be set, or services.vpnConfinement.defaultNamespace to be configured explicitly.";
       }
       {
-        assertion = builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable;
-        message = "systemd.services.${serviceName}.vpn.namespace references disabled namespace ${nsName}.";
+        assertion = nsName == null || builtins.hasAttr nsName cfg.namespaces;
+        message = "systemd.services.${serviceName}.vpn.namespace references unknown namespace ${nsDisplay}.";
       }
       {
-        assertion = (service.serviceConfig.NetworkNamespacePath or null) == namespacePath nsName;
-        message = "vpn-confinement owns systemd.services.${serviceName}.serviceConfig.NetworkNamespacePath; leave it unset or set it to ${namespacePath nsName}.";
+        assertion =
+          nsName == null || (builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable);
+        message = "systemd.services.${serviceName}.vpn.namespace references disabled namespace ${nsDisplay}.";
+      }
+      {
+        assertion =
+          nsName == null || (service.serviceConfig.NetworkNamespacePath or null) == namespacePath nsName;
+        message = "vpn-confinement owns systemd.services.${serviceName}.serviceConfig.NetworkNamespacePath; leave it unset or set it to ${expectedNamespacePath}.";
       }
       {
         assertion = !(service.serviceConfig.PrivateNetwork or false);
@@ -769,7 +821,7 @@ let
       }
       {
         assertion = !highAssurance || service.vpn.allowRootInHighAssurance || dynamicUser || !rootLike;
-        message = "systemd.services.${serviceName} is in high-assurance namespace ${nsName} and must run non-root. Set serviceConfig.DynamicUser = true or non-root serviceConfig.User, or explicitly opt out with vpn.allowRootInHighAssurance = true.";
+        message = "systemd.services.${serviceName} is in high-assurance namespace ${nsDisplay} and must run non-root. Set serviceConfig.DynamicUser = true or non-root serviceConfig.User, or explicitly opt out with vpn.allowRootInHighAssurance = true.";
       }
     ]
   ) vpnEnabledServiceNames;
@@ -778,21 +830,28 @@ let
     socketName:
     let
       nsName = nsForSocket socketName;
+      nsDisplay = if nsName == null then "<unset>" else nsName;
       socket = config.systemd.sockets.${socketName};
       targetUnit = socketTargetUnit socketName;
       targetService = serviceNameFromUnit targetUnit;
       targetExists = builtins.hasAttr targetService config.systemd.services;
       targetVpnEnabled = targetExists && (config.systemd.services.${targetService}.vpn.enable or false);
       socketUnit = if hasSuffix ".socket" socketName then socketName else "${socketName}.socket";
+      expectedNamespacePath = if nsName == null then "/run/netns/<namespace>" else namespacePath nsName;
     in
     [
       {
-        assertion = builtins.hasAttr nsName cfg.namespaces;
-        message = "systemd.sockets.${socketName}.vpn.namespace references unknown namespace ${nsName}.";
+        assertion = nsName != null;
+        message = "systemd.sockets.${socketName}.vpn.enable requires vpn.namespace to be set, or services.vpnConfinement.defaultNamespace to be configured explicitly.";
       }
       {
-        assertion = builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable;
-        message = "systemd.sockets.${socketName}.vpn.namespace references disabled namespace ${nsName}.";
+        assertion = nsName == null || builtins.hasAttr nsName cfg.namespaces;
+        message = "systemd.sockets.${socketName}.vpn.namespace references unknown namespace ${nsDisplay}.";
+      }
+      {
+        assertion =
+          nsName == null || (builtins.hasAttr nsName cfg.namespaces && cfg.namespaces.${nsName}.enable);
+        message = "systemd.sockets.${socketName}.vpn.namespace references disabled namespace ${nsDisplay}.";
       }
       {
         assertion = hasSuffix ".service" targetUnit;
@@ -808,11 +867,12 @@ let
       }
       {
         assertion = !targetVpnEnabled || nsFor targetService == nsName;
-        message = "systemd.sockets.${socketName}.vpn.namespace (${nsName}) must match systemd.services.${targetService}.vpn.namespace for ${socketUnit}.";
+        message = "systemd.sockets.${socketName}.vpn.namespace (${nsDisplay}) must match systemd.services.${targetService}.vpn.namespace for ${socketUnit}.";
       }
       {
-        assertion = (socket.socketConfig.NetworkNamespacePath or null) == namespacePath nsName;
-        message = "vpn-confinement owns systemd.sockets.${socketName}.socketConfig.NetworkNamespacePath; leave it unset or set it to ${namespacePath nsName}.";
+        assertion =
+          nsName == null || (socket.socketConfig.NetworkNamespacePath or null) == namespacePath nsName;
+        message = "vpn-confinement owns systemd.sockets.${socketName}.socketConfig.NetworkNamespacePath; leave it unset or set it to ${expectedNamespacePath}.";
       }
       {
         assertion = joinsNamespaceUnset (socket.unitConfig.JoinsNamespaceOf or null);
@@ -849,6 +909,12 @@ let
       ]
     ++
       lib.optionals
+        (wgExists && ns.securityProfile != "highAssurance" && (wgConfig.privateKey or null) != null)
+        [
+          "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.privateKey. Inline WireGuard secrets land in the Nix store; prefer privateKeyFile or generatePrivateKeyFile."
+        ]
+    ++
+      lib.optionals
         (wgExists && ns.securityProfile != "highAssurance" && !(wgConfig.allowedIPsAsRoutes or true))
         [
           "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
@@ -871,7 +937,7 @@ let
     let
       service = config.systemd.services.${serviceName};
       nsName = nsFor serviceName;
-      ns = attrByPath [ nsName ] null cfg.namespaces;
+      ns = if nsName == null then null else attrByPath [ nsName ] null cfg.namespaces;
       effectiveIngress =
         if ns == null then
           [ ]
@@ -898,9 +964,9 @@ in
     enable = mkEnableOption "VPN confinement for selected systemd services";
 
     defaultNamespace = mkOption {
-      type = types.str;
-      default = "vpnapps";
-      description = "Default namespace name used by vpn-enabled services and sockets when they do not set vpn.namespace.";
+      type = types.nullOr types.str;
+      default = null;
+      description = "Optional default namespace name used by vpn-enabled services and sockets when they do not set vpn.namespace.";
     };
 
     namespaces = mkOption {
@@ -1074,6 +1140,12 @@ in
                   default = [ ];
                   description = "Allowed destination CIDRs (or literal IPs) for allowList mode. Required in highAssurance.";
                 };
+
+                allowEssentialIcmp = mkOption {
+                  type = types.bool;
+                  default = true;
+                  description = "Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when allowedCidrs are configured.";
+                };
               };
 
               hostLink = {
@@ -1085,13 +1157,13 @@ in
 
                 hostIf = mkOption {
                   type = types.str;
-                  default = "ve-${name}-host";
+                  default = vpnLib.deriveHostLinkInterfaceName "host" name;
                   description = "Host-side veth interface name for hostLink mode.";
                 };
 
                 nsIf = mkOption {
                   type = types.str;
-                  default = "ve-${name}-ns";
+                  default = vpnLib.deriveHostLinkInterfaceName "ns" name;
                   description = "Namespace-side veth interface name for hostLink mode.";
                 };
 
@@ -1152,9 +1224,7 @@ in
           }
         )
       );
-      default = {
-        vpnapps.enable = true;
-      };
+      default = { };
       description = "Namespace-scoped confinement policies keyed by namespace name.";
     };
   };
@@ -1162,11 +1232,11 @@ in
   config = mkIf cfg.enable {
     assertions = [
       {
-        assertion = vpnLib.isValidNamespaceName cfg.defaultNamespace;
+        assertion = cfg.defaultNamespace == null || vpnLib.isValidNamespaceName cfg.defaultNamespace;
         message = "services.vpnConfinement.defaultNamespace must match [A-Za-z0-9_.-]+ and be at most 64 characters.";
       }
       {
-        assertion = builtins.hasAttr cfg.defaultNamespace cfg.namespaces;
+        assertion = cfg.defaultNamespace == null || builtins.hasAttr cfg.defaultNamespace cfg.namespaces;
         message = "services.vpnConfinement.defaultNamespace must exist in services.vpnConfinement.namespaces.";
       }
       {

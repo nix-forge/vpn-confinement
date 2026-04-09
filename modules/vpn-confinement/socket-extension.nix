@@ -20,7 +20,7 @@ in
         let
           vcfg = rootConfig.services.vpnConfinement;
           nsName = if config.vpn.namespace != null then config.vpn.namespace else vcfg.defaultNamespace;
-          ns = attrByPath [ nsName ] null vcfg.namespaces;
+          ns = if nsName == null then null else attrByPath [ nsName ] null vcfg.namespaces;
           nsExists = ns != null;
           wgIf = if nsExists then ns.wireguard.interface else "wg0";
         in
@@ -31,11 +31,11 @@ in
             namespace = mkOption {
               type = types.nullOr types.str;
               default = null;
-              description = "Namespace name override for this socket. Leave unset to use services.vpnConfinement.defaultNamespace.";
+              description = "Namespace name override for this socket. Leave unset to use services.vpnConfinement.defaultNamespace when one is configured.";
             };
           };
 
-          config = mkIf (vcfg.enable && config.vpn.enable) (mkMerge [
+          config = mkIf (vcfg.enable && config.vpn.enable && nsName != null) (mkMerge [
             {
               after = [ "vpn-confinement-netns@${nsName}.service" ];
               requires = [ "vpn-confinement-netns@${nsName}.service" ];

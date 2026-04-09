@@ -1,22 +1,22 @@
 { pkgs, ... }:
 {
-  name = "runtime-fail-closed-tunnel-drop";
+  name = "runtime-endpoint-pinning-drop";
 
   nodes.machine = {
     imports = [ ../../modules ];
 
-    networking.hostName = "runtime-fail-closed";
+    networking.hostName = "runtime-endpoint-pinning-drop";
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
       enable = true;
       namespaces.vpnapps = {
         enable = true;
-        wireguard.interface = "wg0";
-        dns = {
-          mode = "strict";
-          servers = [ "10.64.0.1" ];
+        wireguard = {
+          interface = "wg0";
+          endpointPinning.enable = true;
         };
+        dns.servers = [ "10.64.0.1" ];
       };
     };
 
@@ -27,7 +27,7 @@
         {
           publicKey = "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=";
           endpoint = "138.199.43.91:51820";
-          persistentKeepalive = 25;
+          persistentKeepalive = 1;
           allowedIPs = [ "0.0.0.0/0" ];
         }
       ];
@@ -45,31 +45,22 @@
       '';
     };
 
-    systemd.services.netns-drop-probe = {
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "simple";
-        DynamicUser = true;
-        ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
-      };
-      vpn = {
-        enable = true;
-        namespace = "vpnapps";
-      };
-    };
+    environment.systemPackages = [
+      pkgs.iproute2
+      pkgs.netcat-openbsd
+      pkgs.nftables
+      pkgs.wireguard-tools
+    ];
   };
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
-    machine.wait_until_succeeds("ip netns list | grep -q '^vpnapps\\b'")
     machine.wait_for_unit("wireguard-wg0.service")
-    machine.wait_for_unit("netns-drop-probe.service")
+    machine.wait_until_succeeds("nft list table inet vpnc_endpoint_pin_vpnapps >/dev/null 2>&1")
 
-    machine.succeed("ip netns list | grep -q '^vpnapps\\b'")
-    machine.succeed("systemctl is-active --quiet netns-drop-probe.service")
-
-    machine.succeed("systemctl stop wireguard-wg0.service")
-    machine.wait_until_succeeds("! systemctl is-active --quiet netns-drop-probe.service")
-    machine.wait_until_succeeds("! ip netns list | grep -q '^vpnapps\\b'")
+    machine.succeed("nft reset counters table inet vpnc_endpoint_pin_vpnapps")
+    machine.succeed("ip netns exec vpnapps wg set wg0 peer bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0= endpoint 203.0.113.7:51820 persistent-keepalive 1")
+    machine.succeed("ip netns exec vpnapps sh -c 'printf pin | nc -u -w 1 10.0.0.10 53 || true'")
+    machine.wait_until_succeeds("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'meta mark [0-9]+ udp counter packets [1-9][0-9]* drop'")
   '';
 }
