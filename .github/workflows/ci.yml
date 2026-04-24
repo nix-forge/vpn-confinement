@@ -38,7 +38,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@v3.17.3
+        uses: DeterminateSystems/determinate-nix-action@v3.18.0
       - name: Check formatting
         run: nix fmt -- --fail-on-change
   flake-check:
@@ -57,6 +57,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@v3.17.3
+        uses: DeterminateSystems/determinate-nix-action@v3.18.0
       - name: Run flake checks
         run: nix flake check --show-trace --print-build-logs --system ${{ matrix.system }}
