@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Check flake inputs
-        uses: DeterminateSystems/flake-checker-action@v12
+        uses: DeterminateSystems/flake-checker-action@v13
         with:
           flake-lock-path: ${{ matrix.lockfile }}
           ignore-missing-flake-lock: false
