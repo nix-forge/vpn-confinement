@@ -138,6 +138,8 @@ _: {
           '';
     in
     {
-      packages.options-doc-markdown = generatedMarkdown;
+      packages = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        options-doc-markdown = generatedMarkdown;
+      };
     };
 }

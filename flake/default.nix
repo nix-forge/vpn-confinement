@@ -1,8 +1,8 @@
 {
   imports = [
     ./base
-    ./partitions.nix
     ./docs.nix
     ./checks.nix
+    ./partitions.nix
   ];
 }
