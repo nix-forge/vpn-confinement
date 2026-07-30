@@ -26,7 +26,7 @@ body:
     id: config
     attributes:
       label: Relevant configuration
-      description: Include namespace options and affected systemd unit vpn settings.
+      description: Include namespace options and affected systemd unit vpn settings. Redact WireGuard private or preshared keys, tokens, credentials, and other secrets.
     validations:
       required: true
   - type: input
@@ -58,4 +58,4 @@ body:
     id: logs
     attributes:
       label: Logs and diagnostics
-      description: Paste relevant systemd, nftables, and evaluation error output.
+      description: Paste relevant systemd, nftables, and evaluation error output after redacting keys, tokens, credentials, and sensitive environment data.

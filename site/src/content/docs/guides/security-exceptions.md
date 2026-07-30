@@ -37,6 +37,7 @@ for advanced deployments only.
 - `dns.allowHostResolverIPC = true`
 - `wireguard.allowHostnameEndpoints = true`
 - inline `networking.wireguard.interfaces.<if>.privateKey`
+- inline `networking.wireguard.interfaces.<if>.peers.*.presharedKey`
 - `allowedIPsAsRoutes = false`
 
 Use this profile when compatibility trade-offs are acceptable and

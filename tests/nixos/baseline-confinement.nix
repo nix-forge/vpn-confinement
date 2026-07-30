@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{ pkgs, ... }: {
   name = "baseline-confinement";
 
   nodes.machine = {
@@ -47,6 +46,7 @@
       serviceConfig.Type = "oneshot";
       script = ''
         set -eu
+        umask 077
         ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/private.key
         ${pkgs.coreutils}/bin/chmod 0600 /run/wg-test/private.key

@@ -182,11 +182,11 @@ in
                 };
               }
             ))
-            (mkIf (nsExists && config.vpn.restrictBind && bindAllowRules != [ ]) {
+            (mkIf (nsExists && config.vpn.restrictBind) {
               serviceConfig = {
-                SocketBindAllow = bindAllowRules;
                 SocketBindDeny = [ "any" ];
-              };
+              }
+              // lib.optionalAttrs (bindAllowRules != [ ]) { SocketBindAllow = bindAllowRules; };
             })
             (mkIf (config.vpn.hardeningProfile == "strict") {
               serviceConfig = hardeningStrict // {

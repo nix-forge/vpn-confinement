@@ -73,8 +73,8 @@ Use `securityProfile = "highAssurance"` when you want the strict preset.
 
 - It defaults vpn-enabled services in that namespace to strict service
   hardening.
-- It rejects inline WireGuard private keys; use `privateKeyFile` or
-  `generatePrivateKeyFile`.
+- It rejects inline WireGuard private and peer preshared keys; use
+  `privateKeyFile`, `generatePrivateKeyFile`, and `presharedKeyFile`.
 - It requires destination-constrained allowlisting.
 
 ## Read next

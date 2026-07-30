@@ -553,6 +553,7 @@ let
 
   hostIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.hostIf) activeHostLinks;
   nsIfs = map (nsName: enabledNamespaces.${nsName}.hostLink.nsIf) activeHostLinks;
+  managedInterfaceNames = wgNames ++ hostIfs ++ nsIfs;
   hostLinkSubnets = map (nsName: effectiveHostLink.${nsName}.subnetIPv4) activeHostLinks;
 
   namespaceAssertions = builtins.concatMap (
@@ -564,6 +565,11 @@ let
       cidrSplit = vpnLib.splitCidrs ns.egress.allowedCidrs;
       withHostLink = hostLinkEnabled nsName ns;
       highAssurance = ns.securityProfile == "highAssurance";
+      endpointPinningMark =
+        if ns.wireguard.endpointPinning.fwMark != null then
+          ns.wireguard.endpointPinning.fwMark
+        else
+          vpnLib.deriveWireguardFwMark wg;
     in
     [
       {
@@ -584,7 +590,7 @@ let
       }
       {
         assertion = vpnLib.isValidInterfaceName wg;
-        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.interface must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]).";
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.interface must begin and end with an alphanumeric character, contain only [A-Za-z0-9_.-], and be at most 15 characters.";
       }
       {
         assertion = builtins.all vpnLib.isLiteralCidr ns.egress.allowedCidrs;
@@ -627,6 +633,15 @@ let
           || !highAssurance
           || (config.networking.wireguard.interfaces.${wg}.privateKey or null) == null;
         message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects networking.wireguard.interfaces.${wg}.privateKey because inline secrets land in the Nix store. Use privateKeyFile or generatePrivateKeyFile instead.";
+      }
+      {
+        assertion =
+          !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || !highAssurance
+          || builtins.all (peer: (peer.presharedKey or null) == null) (
+            config.networking.wireguard.interfaces.${wg}.peers or [ ]
+          );
+        message = "services.vpnConfinement.namespaces.${nsName}.securityProfile = \"highAssurance\" rejects inline networking.wireguard.interfaces.${wg}.peers.*.presharedKey values because inline secrets land in the Nix store. Use presharedKeyFile instead.";
       }
       {
         assertion = !(ns.ipv6.mode == "disable" && cidrSplit.ipv6 != [ ]);
@@ -717,11 +732,11 @@ let
       }
       {
         assertion = !withHostLink || vpnLib.isValidInterfaceName ns.hostLink.hostIf;
-        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostIf must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]) when host link is enabled.";
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.hostIf must begin and end with an alphanumeric character, contain only [A-Za-z0-9_.-], and be at most 15 characters when host link is enabled.";
       }
       {
         assertion = !withHostLink || vpnLib.isValidInterfaceName ns.hostLink.nsIf;
-        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsIf must be a valid Linux interface name (1-15 chars, [A-Za-z0-9_.-]) when host link is enabled.";
+        message = "services.vpnConfinement.namespaces.${nsName}.hostLink.nsIf must begin and end with an alphanumeric character, contain only [A-Za-z0-9_.-], and be at most 15 characters when host link is enabled.";
       }
       {
         assertion = !withHostLink || vpnLib.isLiteralIpv4Slash30 effectiveHostLink.${nsName}.subnetIPv4;
@@ -760,6 +775,13 @@ let
             mark >= 1 && mark <= 4294967295
           );
         message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.fwMark must resolve to an integer in [1, 4294967295].";
+      }
+      {
+        assertion =
+          !ns.wireguard.endpointPinning.enable
+          || !(builtins.hasAttr wg config.networking.wireguard.interfaces)
+          || (config.networking.wireguard.interfaces.${wg}.fwMark or null) == toString endpointPinningMark;
+        message = "services.vpnConfinement.namespaces.${nsName}.wireguard.endpointPinning.enable requires networking.wireguard.interfaces.${wg}.fwMark to match its configured or derived endpoint-pinning mark; leave the WireGuard fwMark unset unless it matches.";
       }
       {
         assertion = !withHostLink || ns.hostLink.hostIf != ns.hostLink.nsIf;
@@ -913,6 +935,16 @@ let
         ]
     ++
       lib.optionals
+        (
+          wgExists
+          && ns.securityProfile != "highAssurance"
+          && builtins.any (peer: (peer.presharedKey or null) != null) (wgConfig.peers or [ ])
+        )
+        [
+          "services.vpnConfinement.namespaces.${nsName} uses an inline networking.wireguard.interfaces.${wg}.peers.*.presharedKey. Inline WireGuard secrets land in the Nix store; prefer presharedKeyFile."
+        ]
+    ++
+      lib.optionals
         (wgExists && ns.securityProfile != "highAssurance" && !(wgConfig.allowedIPsAsRoutes or true))
         [
           "services.vpnConfinement.namespaces.${nsName} uses networking.wireguard.interfaces.${wg}.allowedIPsAsRoutes = false. vpn-confinement expects WireGuard allowedIPs routes to exist inside the namespace; disabling them is advanced and can break reachability or fail-closed assumptions."
@@ -930,27 +962,6 @@ let
         ]
   ) enabledNamespaceNames;
 
-  restrictBindWarnings = builtins.concatMap (
-    serviceName:
-    let
-      service = config.systemd.services.${serviceName};
-      nsName = nsFor serviceName;
-      ns = if nsName == null then null else attrByPath [ nsName ] null cfg.namespaces;
-      effectiveIngress =
-        if ns == null then
-          [ ]
-        else
-          unique (
-            ns.ingress.fromHost.tcp
-            ++ ns.publishToHost.tcp
-            ++ ns.ingress.fromTunnel.tcp
-            ++ ns.ingress.fromTunnel.udp
-          );
-    in
-    lib.optionals (service.vpn.restrictBind && effectiveIngress == [ ]) [
-      "systemd.services.${serviceName}.vpn.restrictBind = true but namespace ${nsName} exposes no effective ingress ports (ingress.fromHost.tcp, publishToHost.tcp, ingress.fromTunnel.tcp, ingress.fromTunnel.udp). No SocketBindAllow rules will be applied."
-    ]
-  ) vpnEnabledServiceNames;
 in
 {
   imports = [
@@ -970,8 +981,7 @@ in
     namespaces = mkOption {
       type = types.attrsOf (
         types.submodule (
-          { name, config, ... }:
-          {
+          { name, config, ... }: {
             options = {
               enable = mkEnableOption "VPN confinement namespace";
 
@@ -1212,11 +1222,13 @@ in
                   wireguard.allowHostnameEndpoints = mkDefault false;
                 })
                 {
-                  derived.hostLink.subnetIPv4 = if withEffectiveHostLink then derivedSubnet else null;
-                  derived.hostLink.hostAddressIPv4 =
-                    if withEffectiveHostLink && derivedPair != null then derivedPair.hostAddressIPv4 else null;
-                  derived.hostLink.nsAddressIPv4 =
-                    if withEffectiveHostLink && derivedPair != null then derivedPair.nsAddressIPv4 else null;
+                  derived.hostLink = {
+                    subnetIPv4 = if withEffectiveHostLink then derivedSubnet else null;
+                    hostAddressIPv4 =
+                      if withEffectiveHostLink && derivedPair != null then derivedPair.hostAddressIPv4 else null;
+                    nsAddressIPv4 =
+                      if withEffectiveHostLink && derivedPair != null then derivedPair.nsAddressIPv4 else null;
+                  };
                 }
               ];
           }
@@ -1231,7 +1243,7 @@ in
     assertions = [
       {
         assertion = cfg.defaultNamespace == null || vpnLib.isValidNamespaceName cfg.defaultNamespace;
-        message = "services.vpnConfinement.defaultNamespace must match [A-Za-z0-9_.-]+ and be at most 64 characters.";
+        message = "services.vpnConfinement.defaultNamespace must begin and end with an alphanumeric character, contain only [A-Za-z0-9_.-], and be at most 64 characters.";
       }
       {
         assertion = cfg.defaultNamespace == null || builtins.hasAttr cfg.defaultNamespace cfg.namespaces;
@@ -1239,19 +1251,11 @@ in
       }
       {
         assertion = all vpnLib.isValidNamespaceName namespaceNames;
-        message = "services.vpnConfinement.namespaces keys must match [A-Za-z0-9_.-]+ and be at most 64 characters.";
+        message = "services.vpnConfinement.namespaces keys must begin and end with an alphanumeric character, contain only [A-Za-z0-9_.-], and be at most 64 characters.";
       }
       {
-        assertion = unique wgNames == wgNames;
-        message = "Enabled namespaces must not reuse the same wireguard.interface.";
-      }
-      {
-        assertion = unique hostIfs == hostIfs;
-        message = "Enabled host links must not reuse hostLink.hostIf.";
-      }
-      {
-        assertion = unique nsIfs == nsIfs;
-        message = "Enabled host links must not reuse hostLink.nsIf.";
+        assertion = unique managedInterfaceNames == managedInterfaceNames;
+        message = "Enabled namespaces must use globally unique WireGuard and host-link interface names.";
       }
       {
         assertion = unique hostLinkSubnets == hostLinkSubnets;
@@ -1270,7 +1274,7 @@ in
     ++ serviceAssertions
     ++ socketAssertions;
 
-    warnings = rootWarnings ++ namespaceWarnings ++ restrictBindWarnings;
+    warnings = rootWarnings ++ namespaceWarnings;
 
     systemd.services = mkMerge [
       namespaceUnits

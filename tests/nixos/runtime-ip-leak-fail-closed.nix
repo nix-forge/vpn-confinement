@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{ pkgs, ... }: {
   name = "runtime-ip-leak-fail-closed";
 
   nodes.machine = {
@@ -47,6 +46,7 @@
       serviceConfig.Type = "oneshot";
       script = ''
         set -eu
+        umask 077
         ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/private.key
         ${pkgs.coreutils}/bin/chmod 0600 /run/wg-test/private.key
@@ -87,8 +87,17 @@
     machine.succeed("ip netns exec vpnapps nft list chain inet vpnc output | grep -q 'policy drop'")
     machine.succeed("ip netns exec vpnapps nft list chain inet vpnc output | grep -q 'oifname \"wg0\" accept'")
 
+    machine.succeed("rm -f /tmp/vpnapps-positive.pcap /tmp/vpnapps-positive.exit")
+    machine.succeed("sh -c 'timeout 30 tcpdump -c 1 -n -i ve-vpnapps-host tcp port 8080 >/tmp/vpnapps-positive.pcap 2>&1; printf %s $? >/tmp/vpnapps-positive.exit' >/dev/null 2>&1 &")
+    machine.wait_until_succeeds("grep -q 'listening on ve-vpnapps-host' /tmp/vpnapps-positive.pcap")
+    machine.succeed("sh -c 'printf control | nc -w 1 10.231.0.2 8080 || true'")
+    machine.wait_until_succeeds("test -e /tmp/vpnapps-positive.exit")
+    machine.succeed("grep -q '^0$' /tmp/vpnapps-positive.exit")
+    machine.succeed("grep -q '10\\.231\\.0\\.1.*> 10\\.231\\.0\\.2\\.8080' /tmp/vpnapps-positive.pcap")
+
     machine.succeed("rm -f /tmp/vpnapps-hostlink.pcap /tmp/vpnapps-hostlink.exit")
-    machine.succeed("sh -c 'timeout 2 tcpdump -c 1 -n -i ve-vpnapps-host tcp port 8080 >/tmp/vpnapps-hostlink.pcap 2>&1; printf %s $? >/tmp/vpnapps-hostlink.exit' >/dev/null 2>&1 &")
+    machine.succeed("sh -c 'timeout 15 tcpdump -c 1 -n -i ve-vpnapps-host tcp port 8080 >/tmp/vpnapps-hostlink.pcap 2>&1; printf %s $? >/tmp/vpnapps-hostlink.exit' >/dev/null 2>&1 &")
+    machine.wait_until_succeeds("grep -q 'listening on ve-vpnapps-host' /tmp/vpnapps-hostlink.pcap")
     machine.succeed("ip netns exec vpnapps sh -c 'printf leak | nc -w 1 10.231.0.1 8080 || true'")
     machine.wait_until_succeeds("test -e /tmp/vpnapps-hostlink.exit")
     machine.succeed("grep -q '^124$' /tmp/vpnapps-hostlink.exit")
