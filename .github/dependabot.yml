@@ -36,6 +36,11 @@ updates:
     commit-message:
       prefix: build(deps)
       include: scope
+    ignore:
+      # Astro's programmatic checker does not support TypeScript 7 yet.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
     groups:
       docs-minor-and-patch:
         patterns:
