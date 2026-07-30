@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{ pkgs, ... }: {
   name = "runtime-dns-leak-strict-vs-compat";
 
   nodes.machine = {
@@ -65,6 +64,7 @@
       serviceConfig.Type = "oneshot";
       script = ''
         set -eu
+        umask 077
         ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/strict.key
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/compat.key
@@ -106,6 +106,43 @@
   };
 
   testScript = ''
+    import re
+
+    def assert_trace(namespace, name, protocol, destination, port, verdict):
+        trace_file = f"/tmp/{name}.trace"
+        pid_file = f"/tmp/{name}.pid"
+        machine.succeed(f"rm -f {trace_file} {pid_file}")
+        machine.succeed(
+            f"sh -c '${pkgs.coreutils}/bin/stdbuf -oL -eL "
+            f"ip netns exec {namespace} nft monitor trace >{trace_file} 2>&1 & "
+            f"echo $! >{pid_file}'"
+        )
+        machine.wait_until_succeeds(f"test -s {pid_file} && kill -0 $(cat {pid_file})")
+        machine.succeed("sleep 1")
+
+        nc_flag = "-u " if protocol == "udp" else ""
+        machine.succeed(
+            f"ip netns exec {namespace} sh -c "
+            f"'printf dns | nc {nc_flag}-w 1 {destination} {port} || true'"
+        )
+        machine.wait_until_succeeds(
+            f"grep -q 'ip daddr {destination}' {trace_file}",
+            timeout=30,
+        )
+        machine.succeed(f"kill $(cat {pid_file}) || true")
+
+        trace = machine.succeed(f"cat {trace_file}")
+        packet_pattern = re.compile(
+            rf"trace id ([0-9a-f]+).*packet:.*ip daddr {re.escape(destination)}"
+            rf".*{protocol}.*dport {port}\b"
+        )
+        trace_ids = packet_pattern.findall(trace)
+        assert trace_ids, f"no trace found for {protocol} {destination}:{port}:\n{trace}"
+        assert any(
+            re.search(rf"trace id {trace_id}\b.*verdict {verdict}\b", trace)
+            for trace_id in trace_ids
+        ), f"no {verdict} verdict found for {protocol} {destination}:{port}:\n{trace}"
+
     machine.wait_for_unit("multi-user.target")
     machine.wait_until_succeeds("ip netns list | grep -q '^ns-strict\\b'")
     machine.wait_until_succeeds("ip netns list | grep -q '^ns-compat\\b'")
@@ -122,13 +159,30 @@
     machine.fail("ip netns exec ns-compat nft list table inet vpnc | grep -q 'set dns_blocked_ports'")
 
     machine.succeed("ip netns exec ns-strict nft insert rule inet vpnc output meta nftrace set 1")
-    machine.succeed("rm -f /tmp/ns-strict.trace")
-    machine.succeed("sh -c 'timeout 3 ip netns exec ns-strict nft monitor trace >/tmp/ns-strict.trace 2>&1 & mon=$!; sleep 1; ip netns exec ns-strict sh -c \"printf dns | nc -u -w 1 198.51.100.53 53 || true\"; wait $mon || true'")
-    machine.succeed("grep -q 'verdict drop' /tmp/ns-strict.trace")
+    assert_trace("ns-strict", "strict-allowed-udp", "udp", "10.64.0.1", 53, "accept")
+    assert_trace("ns-strict", "strict-allowed-tcp", "tcp", "10.64.0.1", 53, "accept")
+
+    for protocol in ("udp", "tcp"):
+        for port in (53, 853, 5353, 5355):
+            assert_trace(
+                "ns-strict",
+                f"strict-blocked-{protocol}-{port}",
+                protocol,
+                "198.51.100.53",
+                port,
+                "drop",
+            )
 
     machine.succeed("ip netns exec ns-compat nft insert rule inet vpnc output meta nftrace set 1")
-    machine.succeed("rm -f /tmp/ns-compat.trace")
-    machine.succeed("sh -c 'timeout 3 ip netns exec ns-compat nft monitor trace >/tmp/ns-compat.trace 2>&1 & mon=$!; sleep 1; ip netns exec ns-compat sh -c \"printf dns | nc -u -w 1 198.51.100.53 53 || true\"; wait $mon || true'")
-    machine.succeed("grep -q 'verdict accept' /tmp/ns-compat.trace")
+    for protocol in ("udp", "tcp"):
+        for port in (53, 853, 5353, 5355):
+            assert_trace(
+                "ns-compat",
+                f"compat-allowed-{protocol}-{port}",
+                protocol,
+                "198.51.100.53",
+                port,
+                "accept",
+            )
   '';
 }

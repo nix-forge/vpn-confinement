@@ -1,11 +1,3 @@
-{ inputs, ... }:
-{
-  perSystem =
-    { system, ... }:
-    let
-      pkgs = import inputs.nixpkgs { inherit system; };
-    in
-    {
-      _module.args.pkgs = pkgs;
-    };
+{ inputs, ... }: {
+  perSystem = { system, ... }: { _module.args.pkgs = import inputs.nixpkgs { inherit system; }; };
 }

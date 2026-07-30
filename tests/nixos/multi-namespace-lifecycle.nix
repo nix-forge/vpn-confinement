@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{ pkgs, ... }: {
   name = "multi-namespace-lifecycle";
 
   nodes.machine = {
@@ -75,6 +74,7 @@
       serviceConfig.Type = "oneshot";
       script = ''
         set -eu
+        umask 077
         ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/media.key
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/apps.key

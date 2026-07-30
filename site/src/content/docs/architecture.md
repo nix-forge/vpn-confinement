@@ -56,8 +56,9 @@ real deployment.
   rejects weaker compatibility paths such as hostname endpoints or host resolver
   IPC.
 - `securityProfile = "highAssurance"` also rejects inline
-  `networking.wireguard.interfaces.<if>.privateKey`; use `privateKeyFile` or
-  `generatePrivateKeyFile` instead.
+  `networking.wireguard.interfaces.<if>.privateKey` and peer `presharedKey`
+  values; use `privateKeyFile`, `generatePrivateKeyFile`, and
+  `presharedKeyFile` instead.
 - `securityProfile = "highAssurance"` requires non-empty `egress.allowedCidrs`
   so outbound policy remains destination-constrained.
 - In allowlist mode, narrow ICMP / ICMPv6 error traffic is still permitted for
@@ -138,9 +139,9 @@ For a practical host reverse-proxy pattern, see
   port-based policy.
 - DNS-over-HTTPS/DNS-over-QUIC can still traverse generic egress paths unless
   destination allowlisting is enabled.
-- `networking.wireguard.interfaces.<if>.fwMark` and `.mtu` remain upstream
-  WireGuard controls; this module documents them but does not build policy
-  around them.
+- `networking.wireguard.interfaces.<if>.mtu` remains an upstream WireGuard
+  control. When endpoint pinning is enabled, vpn-confinement owns `.fwMark` so
+  the WireGuard socket mark and nftables policy cannot diverge.
 - This module supports WireGuard integration through
   `networking.wireguard.interfaces` only.
 - Endpoint pinning is implemented with

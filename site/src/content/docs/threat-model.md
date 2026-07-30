@@ -80,8 +80,9 @@ when you need to map the model to concrete configuration choices.
 - `securityProfile = "highAssurance"` rejects `dns.allowHostResolverIPC = true`,
   `wireguard.allowHostnameEndpoints = true`, and `allowedIPsAsRoutes = false`.
 - `securityProfile = "highAssurance"` rejects inline
-  `networking.wireguard.interfaces.<if>.privateKey`; use `privateKeyFile` or
-  `generatePrivateKeyFile` instead.
+  `networking.wireguard.interfaces.<if>.privateKey` and peer `presharedKey`
+  values; use `privateKeyFile`, `generatePrivateKeyFile`, and
+  `presharedKeyFile` instead.
 - `securityProfile = "highAssurance"` also requires destination-constrained
   egress (`egress.allowedCidrs` must be non-empty) and non-root service
   execution by default (unless a service sets

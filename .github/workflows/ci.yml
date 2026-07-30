@@ -4,14 +4,15 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
 jobs:
-  flake-locks:
-    name: Flake Locks (${{ matrix.lockfile }})
+  flake-lock:
+    name: Flake Lock (${{ matrix.lockfile }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -22,9 +23,11 @@ jobs:
           - flake/dev/flake.lock
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-      - name: Check flake inputs
-        uses: DeterminateSystems/flake-checker-action@v13
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check Nix flake inputs
+        uses: DeterminateSystems/flake-checker-action@de924abd783455e8429c858962b9e43062d19da1 # v13
         with:
           flake-lock-path: ${{ matrix.lockfile }}
           ignore-missing-flake-lock: false
@@ -34,17 +37,38 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@v3.21.7
+        uses: DeterminateSystems/determinate-nix-action@d96678350ffd6a456235832eb11e1c491589b7bb # v3.21.8
       - name: Check formatting
         run: nix fmt -- --fail-on-change
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@d96678350ffd6a456235832eb11e1c491589b7bb # v3.21.8
+      - name: Run repository hooks
+        run: nix develop --command pre-commit run --all-files
   flake-check:
     name: Flake Check (${{ matrix.system }})
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 90
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -55,8 +79,11 @@ jobs:
             runs_on: ubuntu-24.04-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@v3.21.7
+        uses: DeterminateSystems/determinate-nix-action@d96678350ffd6a456235832eb11e1c491589b7bb # v3.21.8
       - name: Run flake checks
-        run: nix flake check --show-trace --print-build-logs --system ${{ matrix.system }}
+        run: >-
+          nix flake check --keep-going --show-trace --print-build-logs --system ${{ matrix.system }}

@@ -14,6 +14,7 @@ export default defineConfig({
         src: "./src/assets/logo.png",
         alt: "vpn-confinement",
       },
+      favicon: "/logo-512.png",
       social: [
         {
           icon: "github",

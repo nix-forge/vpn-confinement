@@ -1,7 +1,8 @@
 {
+  description = "Development-only inputs for vpn-confinement";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    systems.url = "github:nix-systems/default";
 
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";

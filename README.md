@@ -36,7 +36,7 @@ VPN egress while the host and other workloads remain on normal networking.
 
 ## Documentation
 
-- Docs site: https://ianhollow.github.io/vpn-confinement/
+- Docs site: <https://ianhollow.github.io/vpn-confinement/>
 - Architecture: `site/src/content/docs/architecture.md`
 - Threat model: `site/src/content/docs/threat-model.md`
 - Generated options reference:
@@ -133,7 +133,8 @@ Profiles:
   `systemd.services.<name>.vpn.allowRootInHighAssurance = true`
 - literal WireGuard endpoints (hostname endpoints rejected)
 - `allowedIPsAsRoutes = true`
-- no inline `networking.wireguard.interfaces.<if>.privateKey`
+- no inline `networking.wireguard.interfaces.<if>.privateKey` or peer
+  `presharedKey`
 
 WireGuard endpoint pinning is available with
 `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`. It
@@ -142,9 +143,9 @@ socket birthplace namespace (`init` by default, or custom
 `wireguard.socketNamespace` when configured). See
 `site/src/content/docs/threat-model.md` for scope and caveats.
 
-`highAssurance` rejects inline WireGuard private keys because they land in the
-world-readable Nix store. Use `privateKeyFile` or `generatePrivateKeyFile`
-instead.
+`highAssurance` rejects inline WireGuard private and peer preshared keys because
+they land in the world-readable Nix store. Use `privateKeyFile`,
+`generatePrivateKeyFile`, and `presharedKeyFile` instead.
 
 ## Development
 

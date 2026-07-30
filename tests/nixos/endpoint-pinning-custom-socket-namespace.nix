@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-{
+{ pkgs, ... }: {
   name = "endpoint-pinning-custom-socket-namespace";
 
   nodes.machine = {
@@ -69,6 +68,7 @@
       serviceConfig.Type = "oneshot";
       script = ''
         set -eu
+        umask 077
         ${pkgs.coreutils}/bin/mkdir -p /run/wg-test
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/wg0.key
         ${pkgs.wireguard-tools}/bin/wg genkey > /run/wg-test/wg-birthplace.key

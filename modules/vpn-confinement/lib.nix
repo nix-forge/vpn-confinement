@@ -18,9 +18,10 @@ let
   ipv4OctetValid =
     octet:
     let
-      parsed = builtins.tryEval (builtins.fromJSON octet);
+      canonical = builtins.match "^(0|[1-9][0-9]{0,2})$" octet != null;
+      parsed = if canonical then builtins.fromJSON octet else null;
     in
-    parsed.success && builtins.isInt parsed.value && parsed.value >= 0 && parsed.value <= 255;
+    canonical && builtins.isInt parsed && parsed >= 0 && parsed <= 255;
 
   isLiteralIpv4 =
     value:
@@ -32,12 +33,9 @@ let
   parseNumber =
     value:
     let
-      parsed = builtins.tryEval (builtins.fromJSON value);
+      canonical = builtins.stringLength value <= 5 && builtins.match "^(0|[1-9][0-9]*)$" value != null;
     in
-    if builtins.match "^[0-9]+$" value == null || !parsed.success || !(builtins.isInt parsed.value) then
-      null
-    else
-      parsed.value;
+    if canonical then builtins.fromJSON value else null;
 
   intMod = a: b: a - (builtins.div a b) * b;
 
@@ -114,6 +112,7 @@ let
     in
     {
       valid = (!hasEmptyPart parts) && ipv4TailValid && partsValid;
+      hasIpv4 = ipv4Tail != [ ];
       inherit groups;
     };
 
@@ -135,6 +134,7 @@ let
             if leftRaw == "" then
               {
                 valid = true;
+                hasIpv4 = false;
                 groups = 0;
               }
             else
@@ -143,13 +143,14 @@ let
             if rightRaw == "" then
               {
                 valid = true;
+                hasIpv4 = false;
                 groups = 0;
               }
             else
               parseIpv6Side (splitString ":" rightRaw);
           explicitGroups = left.groups + right.groups;
         in
-        left.valid && right.valid && explicitGroups < 8
+        left.valid && right.valid && !left.hasIpv4 && explicitGroups < 8
     else
       let
         parsed = parseIpv6Side (splitString ":" value);
@@ -334,13 +335,13 @@ let
     value:
     builtins.stringLength value >= 1
     && builtins.stringLength value <= 64
-    && builtins.match "^[A-Za-z0-9_.-]+$" value != null;
+    && builtins.match "^[A-Za-z0-9]([A-Za-z0-9_.-]{0,62}[A-Za-z0-9])?$" value != null;
 
   isValidInterfaceName =
     value:
     builtins.stringLength value >= 1
     && builtins.stringLength value <= 15
-    && builtins.match "^[A-Za-z0-9_.-]+$" value != null;
+    && builtins.match "^[A-Za-z0-9]([A-Za-z0-9_.-]{0,13}[A-Za-z0-9])?$" value != null;
 
   isLiteralIpv4Slash30 =
     value:

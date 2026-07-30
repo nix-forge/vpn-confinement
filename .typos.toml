@@ -1,0 +1,11 @@
+[files]
+extend-exclude = [
+  "flake.lock",
+  "flake/dev/flake.lock",
+  "site/bun.lock",
+  "site/src/content/docs/reference/options-generated.md",
+]
+
+[default.extend-words]
+ND = "ND"
+noice = "noice"
