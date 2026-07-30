@@ -3,8 +3,7 @@ title: Generated Options
 description: Auto-generated option reference from nixosOptionsDoc
 ---
 
-This file is generated from module option declarations using
-`pkgs.nixosOptionsDoc`.
+This file is generated from module option declarations using `pkgs.nixosOptionsDoc`.
 
 Regenerate with:
 
@@ -14,8 +13,8 @@ bash scripts/generate-options-doc.sh x86_64-linux
 
 ## `services.vpnConfinement.defaultNamespace`
 
-Optional default namespace name used by vpn-enabled services and sockets when
-they do not set vpn.namespace.
+Optional default namespace name used by vpn-enabled services and sockets when they do not set
+vpn.namespace.
 
 - **Type:** null or string
 - **Default:**
@@ -105,8 +104,8 @@ null
 
 ## `services.vpnConfinement.namespaces.<name>.dns.allowHostResolverIPC`
 
-Allow strict-mode services to reach host resolver helper IPC such as nscd or
-system D-Bus. This weakens DNS containment.
+Allow strict-mode services to reach host resolver helper IPC such as nscd or system D-Bus. This
+weakens DNS containment.
 
 - **Type:** boolean
 - **Default:**
@@ -120,8 +119,8 @@ false
 
 ## `services.vpnConfinement.namespaces.<name>.dns.mode`
 
-DNS containment mode. "strict" is the secure default; "compat" weakens resolver
-containment for workloads that need it.
+DNS containment mode. "strict" is the secure default; "compat" weakens resolver containment for
+workloads that need it.
 
 - **Type:** one of "strict", "compat"
 - **Default:**
@@ -135,8 +134,8 @@ containment for workloads that need it.
 
 ## `services.vpnConfinement.namespaces.<name>.dns.search`
 
-DNS search suffixes written to generated resolver config; values must be valid
-domain-style suffixes.
+DNS search suffixes written to generated resolver config; values must be valid domain-style
+suffixes.
 
 - **Type:** list of string
 - **Default:**
@@ -150,8 +149,7 @@ domain-style suffixes.
 
 ## `services.vpnConfinement.namespaces.<name>.dns.servers`
 
-Allowed DNS resolver IPs used to generate namespace-local resolv.conf in strict
-mode.
+Allowed DNS resolver IPs used to generate namespace-local resolv.conf in strict mode.
 
 - **Type:** list of string
 - **Default:**
@@ -165,8 +163,7 @@ mode.
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowEssentialIcmp`
 
-Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when
-allowedCidrs are configured.
+Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when allowedCidrs are configured.
 
 - **Type:** boolean
 - **Default:**
@@ -180,8 +177,7 @@ true
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowedCidrs`
 
-Allowed destination CIDRs (or literal IPs) for allowList mode. Required in
-highAssurance.
+Allowed destination CIDRs (or literal IPs) for allowList mode. Required in highAssurance.
 
 - **Type:** list of string
 - **Default:**
@@ -197,8 +193,7 @@ highAssurance.
 
 Allowed TCP destination ports for allowList mode.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -212,8 +207,7 @@ Allowed TCP destination ports for allowList mode.
 
 Allowed UDP destination ports for allowList mode.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -301,8 +295,7 @@ Namespace-side veth interface name for hostLink mode.
 
 ## `services.vpnConfinement.namespaces.<name>.hostLink.subnetIPv4`
 
-Optional hostLink /30 subnet base. Null auto-allocates a deterministic subnet
-from 169.254.0.0/16.
+Optional hostLink /30 subnet base. Null auto-allocates a deterministic subnet from 169.254.0.0/16.
 
 - **Type:** null or string
 - **Default:**
@@ -316,11 +309,9 @@ null
 
 ## `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
 
-TCP ports accepted from hostLink host endpoint into the namespace. Requires
-hostLink.enable = true.
+TCP ports accepted from hostLink host endpoint into the namespace. Requires hostLink.enable = true.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -334,8 +325,7 @@ hostLink.enable = true.
 
 TCP listener ports accepted from the WireGuard interface into the namespace.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -349,8 +339,7 @@ TCP listener ports accepted from the WireGuard interface into the namespace.
 
 UDP listener ports accepted from the WireGuard interface into the namespace.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -362,8 +351,8 @@ UDP listener ports accepted from the WireGuard interface into the namespace.
 
 ## `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 
-IPv6 policy inside this namespace: fail-closed disable, or tunnel when WireGuard
-IPv6 routes are configured.
+IPv6 policy inside this namespace: fail-closed disable, or tunnel when WireGuard IPv6 routes are
+configured.
 
 - **Type:** one of "disable", "tunnel"
 - **Default:**
@@ -377,12 +366,10 @@ IPv6 routes are configured.
 
 ## `services.vpnConfinement.namespaces.<name>.publishToHost.tcp`
 
-Simplified host publish abstraction for namespace services. Ports are merged
-with ingress.fromHost.tcp. Non-empty values automatically enable effective
-host-link wiring.
+Simplified host publish abstraction for namespace services. Ports are merged with
+ingress.fromHost.tcp. Non-empty values automatically enable effective host-link wiring.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both
-  inclusive)
+- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
 
 ```nix
@@ -394,8 +381,8 @@ host-link wiring.
 
 ## `services.vpnConfinement.namespaces.<name>.securityProfile`
 
-Opinionated namespace security preset. "highAssurance" turns weaker
-compatibility paths into explicit evaluation failures.
+Opinionated namespace security preset. "highAssurance" turns weaker compatibility paths into
+explicit evaluation failures.
 
 - **Type:** one of "balanced", "highAssurance"
 - **Default:**
@@ -409,8 +396,8 @@ compatibility paths into explicit evaluation failures.
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.allowHostnameEndpoints`
 
-Advanced compatibility opt-in for hostname:port WireGuard peer endpoints.
-Literal IP endpoints remain the secure default.
+Advanced compatibility opt-in for hostname:port WireGuard peer endpoints. Literal IP endpoints
+remain the secure default.
 
 - **Type:** boolean
 - **Default:**
@@ -424,9 +411,8 @@ false
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`
 
-Pin WireGuard outer UDP egress to configured literal peer endpoints using
-host-side nftables policy in the socket birthplace namespace path supported by
-this module.
+Pin WireGuard outer UDP egress to configured literal peer endpoints using host-side nftables policy
+in the socket birthplace namespace path supported by this module.
 
 - **Type:** boolean
 - **Default:**
@@ -440,9 +426,8 @@ false
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.fwMark`
 
-Optional fwMark used to identify WireGuard outer UDP traffic for endpoint
-pinning. Null auto-derives a deterministic non-zero mark from the interface
-name.
+Optional fwMark used to identify WireGuard outer UDP traffic for endpoint pinning. Null auto-derives
+a deterministic non-zero mark from the interface name.
 
 - **Type:** null or (unsigned integer, meaning >=0)
 - **Default:**
@@ -470,8 +455,8 @@ WireGuard interface name managed for this confinement namespace.
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
 
-Advanced WireGuard UDP socket birthplace namespace. Leave this unset for the
-default path, or use "init" when the socket must stay in the host namespace.
+Advanced WireGuard UDP socket birthplace namespace. Leave this unset for the default path, or use
+"init" when the socket must stay in the host namespace.
 
 - **Type:** null or string
 - **Default:**
@@ -485,8 +470,8 @@ null
 
 ## `systemd.services.<name>.vpn.allowRootInHighAssurance`
 
-Explicit opt-out for high-assurance non-root enforcement. Use only when this
-service cannot run as DynamicUser or a dedicated User.
+Explicit opt-out for high-assurance non-root enforcement. Use only when this service cannot run as
+DynamicUser or a dedicated User.
 
 - **Type:** boolean
 - **Default:**
@@ -520,8 +505,7 @@ true
 
 ## `systemd.services.<name>.vpn.extraAddressFamilies`
 
-Additional AddressFamily names appended to RestrictAddressFamilies for this
-service.
+Additional AddressFamily names appended to RestrictAddressFamilies for this service.
 
 - **Type:** list of string
 - **Default:**
@@ -564,8 +548,7 @@ null
 
 ## `systemd.services.<name>.vpn.restrictBind`
 
-Restrict service-created listeners to declared namespace ingress ports as
-defense in depth.
+Restrict service-created listeners to declared namespace ingress ports as defense in depth.
 
 - **Type:** boolean
 - **Default:**
@@ -599,8 +582,8 @@ true
 
 ## `systemd.sockets.<name>.vpn.namespace`
 
-Namespace name override for this socket. Leave unset to use
-services.vpnConfinement.defaultNamespace when one is configured.
+Namespace name override for this socket. Leave unset to use services.vpnConfinement.defaultNamespace
+when one is configured.
 
 - **Type:** null or string
 - **Default:**

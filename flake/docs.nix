@@ -55,6 +55,7 @@ _: {
             import os
             import pathlib
             import re
+            import textwrap
 
             repo_blob_base = "${repoBlobBase}"
             options_json_path = pathlib.Path("${optionsJsonPath}")
@@ -71,6 +72,16 @@ _: {
                     if text is not None:
                         return str(text).strip()
                 return str(value).strip()
+
+            def wrap_markdown(text, *, initial_indent="", subsequent_indent=""):
+                return textwrap.wrap(
+                    " ".join(text.split()),
+                    width=100,
+                    initial_indent=initial_indent,
+                    subsequent_indent=subsequent_indent,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
 
             lines = [
                 "---",
@@ -99,24 +110,34 @@ _: {
                 lines.append("")
 
                 if description:
-                    lines.append(description)
+                    lines.extend(wrap_markdown(description))
                     lines.append("")
 
-                lines.append(f"- **Type:** {option_type}")
+                lines.extend(
+                    wrap_markdown(
+                        f"**Type:** {option_type}",
+                        initial_indent="- ",
+                        subsequent_indent="  ",
+                    )
+                )
 
                 default = literal_text(option.get("default"))
                 if default:
                     lines.append("- **Default:**")
+                    lines.append("")
                     lines.append("```nix")
                     lines.append(default)
                     lines.append("```")
+                    lines.append("")
 
                 example = literal_text(option.get("example"))
                 if example:
                     lines.append("- **Example:**")
+                    lines.append("")
                     lines.append("```nix")
                     lines.append(example)
                     lines.append("```")
+                    lines.append("")
 
                 declarations = option.get("declarations", [])
                 if declarations:
