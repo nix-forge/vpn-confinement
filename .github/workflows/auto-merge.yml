@@ -1,0 +1,29 @@
+name: Auto-merge
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] This workflow never checks out or executes pull request code; it only calls GitHub's merge API.
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+permissions: {}
+jobs:
+  enable-auto-merge:
+    name: Enable Auto-merge
+    if: >-
+      github.event.pull_request.draft == false && github.repository == 'IanHollow/vpn-confinement' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enable squash auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --auto --squash --delete-branch

@@ -5,6 +5,7 @@
     imports = [ ../../modules ];
 
     networking.hostName = "multi-namespace";
+    networking.useDHCP = false;
     system.stateVersion = "26.05";
 
     services.vpnConfinement = {
