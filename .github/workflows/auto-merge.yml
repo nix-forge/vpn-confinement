@@ -14,7 +14,7 @@ jobs:
   enable-auto-merge:
     name: Enable Auto-merge
     if: >-
-      github.event.pull_request.draft == false && github.repository == 'IanHollow/vpn-confinement' && github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.draft == false && github.repository == 'nix-forge/vpn-confinement' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
       pull-requests: write
@@ -26,4 +26,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
-        run: gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --auto --squash --delete-branch
+        run: gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --auto --squash
