@@ -3,10 +3,11 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: daily
+      interval: weekly
+      day: monday
       time: "05:00"
       timezone: America/Los_Angeles
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
     rebase-strategy: auto
     labels:
       - dependencies
@@ -18,9 +19,6 @@ updates:
       github-actions-minor-and-patch:
         patterns:
           - "*"
-        update-types:
-          - minor
-          - patch
   - package-ecosystem: bun
     directory: "/site"
     schedule:
@@ -28,7 +26,7 @@ updates:
       day: monday
       time: "05:30"
       timezone: America/Los_Angeles
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
     rebase-strategy: auto
     labels:
       - dependencies
@@ -45,9 +43,6 @@ updates:
       docs-minor-and-patch:
         patterns:
           - "*"
-        update-types:
-          - minor
-          - patch
   - package-ecosystem: nix
     directories:
       - "/"
@@ -57,7 +52,7 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Los_Angeles
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     rebase-strategy: auto
     labels:
       - dependencies
