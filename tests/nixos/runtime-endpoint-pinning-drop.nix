@@ -1,4 +1,10 @@
-{ pkgs, ... }: {
+{ pkgs, lib, ... }:
+let
+  tableName =
+    (import ../../modules/vpn-confinement/lib.nix { inherit lib; }).endpointTableName
+      "vpnapps";
+in
+{
   name = "runtime-endpoint-pinning-drop";
 
   nodes.machine = {
@@ -56,17 +62,17 @@
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("wireguard-wg0.service")
-    machine.wait_until_succeeds("nft list table inet vpnc_endpoint_pin_vpnapps >/dev/null 2>&1")
-    machine.succeed("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'meta mark (0x[[:xdigit:]]+|[0-9]+) ip daddr 138\\.199\\.43\\.91 udp dport 51820 counter packets [0-9]+ bytes [0-9]+ accept'")
+    machine.wait_until_succeeds("nft list table inet ${tableName} >/dev/null 2>&1")
+    machine.succeed("nft list chain inet ${tableName} output | grep -Eq 'meta mark (0x[[:xdigit:]]+|[0-9]+) ip daddr 138\\.199\\.43\\.91 udp dport 51820 counter packets [0-9]+ bytes [0-9]+ accept'")
 
-    machine.succeed("nft reset counters table inet vpnc_endpoint_pin_vpnapps")
+    machine.succeed("nft reset counters table inet ${tableName}")
     machine.succeed("ip netns exec vpnapps wg set wg0 peer bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0= endpoint 138.199.43.91:51820 persistent-keepalive 1")
     machine.succeed("ip netns exec vpnapps sh -c 'for _ in 1 2 3 4 5; do printf pin | nc -u -w 1 10.0.0.10 12345 || true; done'")
-    machine.wait_until_succeeds("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'ip daddr 138\\.199\\.43\\.91 udp dport 51820 counter packets [1-9][0-9]* bytes [1-9][0-9]* accept'")
+    machine.wait_until_succeeds("nft list chain inet ${tableName} output | grep -Eq 'ip daddr 138\\.199\\.43\\.91 udp dport 51820 counter packets [1-9][0-9]* bytes [1-9][0-9]* accept'")
 
     machine.succeed("ip netns exec vpnapps wg set wg0 peer bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0= endpoint 203.0.113.7:51820 persistent-keepalive 1")
-    machine.succeed("nft reset counters table inet vpnc_endpoint_pin_vpnapps")
+    machine.succeed("nft reset counters table inet ${tableName}")
     machine.succeed("ip netns exec vpnapps sh -c 'for _ in 1 2 3 4 5; do printf pin | nc -u -w 1 10.0.0.10 12345 || true; done'")
-    machine.wait_until_succeeds("nft list chain inet vpnc_endpoint_pin_vpnapps output | grep -Eq 'udp counter packets [1-9][0-9]*( bytes [0-9]+)? drop'")
+    machine.wait_until_succeeds("nft list chain inet ${tableName} output | grep -Eq 'udp counter packets [1-9][0-9]*( bytes [0-9]+)? drop'")
   '';
 }

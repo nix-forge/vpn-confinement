@@ -3,7 +3,8 @@ title: Common Deployments
 description: Recommended defaults for day-1 setups
 ---
 
-This page is the fast path for most operators.
+For a complete first setup, use the [Transmission recipe](../transmission/).
+This page covers selecting a policy for other services.
 
 ## Recommended baseline
 
@@ -39,6 +40,10 @@ systemd.services.my-app.vpn = {
 
 `publishToHost` is backed by the same host-link mechanism as `hostLink.*`. It is
 the common-path API; `hostLink.*` remains the advanced escape hatch.
+`ingress.fromHost.tcp` is a compatibility alias for `publishToHost.tcp`. Both automatically
+create the host link; a separate `hostLink.enable` setting is unnecessary for port access.
+It does not create a localhost listener or a VPN-provider port forward. Connect
+to the derived namespace address, or configure a host reverse proxy explicitly.
 
 ## Use derived hostLink values
 

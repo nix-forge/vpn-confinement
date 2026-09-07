@@ -40,12 +40,19 @@ in
               after = [ "vpn-confinement-netns@${nsName}.service" ];
               requires = [ "vpn-confinement-netns@${nsName}.service" ];
               bindsTo = [ "vpn-confinement-netns@${nsName}.service" ];
+              # Namespace preparation is a service ordered after basic.target.
+              # The socket must not hold sockets.target (and thus basic.target)
+              # waiting for that preparation service.
+              unitConfig.DefaultDependencies = false;
+              before = [ "shutdown.target" ];
+              conflicts = [ "shutdown.target" ];
               socketConfig.NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
             }
             (mkIf nsExists {
               after = [ "wireguard-${wgIf}.service" ];
               requires = [ "wireguard-${wgIf}.service" ];
               bindsTo = [ "wireguard-${wgIf}.service" ];
+              partOf = [ "wireguard-${wgIf}.service" ];
             })
           ]);
         }

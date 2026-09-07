@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-  site: "https://ianhollow.github.io",
+  site: "https://nix-forge.github.io",
   base: "/vpn-confinement/",
   integrations: [
     starlight({
@@ -19,7 +19,7 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/IanHollow/vpn-confinement",
+          href: "https://github.com/nix-forge/vpn-confinement",
         },
       ],
       customCss: ["./src/styles/global.css"],
@@ -29,6 +29,8 @@ export default defineConfig({
           label: "Getting Started",
           items: [
             { label: "Overview", slug: "index" },
+            { label: "Transmission setup", slug: "guides/transmission" },
+            { label: "Diagnostics", slug: "guides/diagnostics" },
             { label: "Common Deployments", slug: "guides/common-deployments" },
             { label: "Reverse Proxy", slug: "guides/reverse-proxy" },
             {
@@ -48,6 +50,7 @@ export default defineConfig({
           label: "Advanced",
           items: [
             { label: "Advanced Tuning", slug: "guides/advanced-tuning" },
+            { label: "Performance", slug: "guides/performance" },
             {
               label: "Security Exceptions",
               slug: "guides/security-exceptions",

@@ -73,13 +73,9 @@ in
               pkgs.writeText "vpn-confinement-${nsName}.nsswitch.conf" (vpnLib.renderNsswitchConf ns.dns)
             else
               null;
-          withHostLink = nsExists && (ns.hostLink.enable || ns.publishToHost.tcp != [ ]);
+          policy = if nsExists then vpnLib.effectiveNamespace nsName ns else null;
           wgIf = if nsExists then ns.wireguard.interface else "wg0";
-          allowedBindTcp =
-            if nsExists then
-              unique (ns.ingress.fromHost.tcp ++ ns.publishToHost.tcp ++ ns.ingress.fromTunnel.tcp)
-            else
-              [ ];
+          allowedBindTcp = if nsExists then unique (policy.fromHostTcp ++ ns.ingress.fromTunnel.tcp) else [ ];
           allowedBindUdp = if nsExists then unique ns.ingress.fromTunnel.udp else [ ];
           bindAllowRules =
             (map (port: "tcp:${toString port}") allowedBindTcp)
@@ -97,11 +93,7 @@ in
                 "AF_INET6"
               ];
           familySet = unique (defaultFamilySet ++ config.vpn.extraAddressFamilies);
-          defaultInterfaceSet = [
-            "lo"
-            wgIf
-          ]
-          ++ lib.optionals withHostLink [ ns.hostLink.nsIf ];
+
         in
         {
           options.vpn = {
@@ -137,6 +129,24 @@ in
               '';
             };
 
+            allowUnsafeCapabilities = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax. These can undermine confinement. Prefer a separate privileged helper.";
+            };
+
+            allowPrivilegedCommands = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command executable syntax that cannot be checked conservatively. Applies to all lifecycle commands; prefer separate trusted setup units.";
+            };
+
+            allowHostSockets = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified. Includes host Unix sockets and unresolved socket references.";
+            };
+
             extraAddressFamilies = mkOption {
               type = types.listOf types.str;
               default = [ ];
@@ -152,23 +162,24 @@ in
               serviceConfig = hardeningBaseline // {
                 NetworkNamespacePath = mkDefault "/run/netns/${nsName}";
                 RestrictAddressFamilies = mkDefault familySet;
-                RestrictNetworkInterfaces = mkDefault defaultInterfaceSet;
               };
             }
             (mkIf nsExists {
               after = [ "wireguard-${wgIf}.service" ];
               requires = [ "wireguard-${wgIf}.service" ];
               bindsTo = [ "wireguard-${wgIf}.service" ];
+              partOf = [ "wireguard-${wgIf}.service" ];
             })
             (mkIf strictDns (
               let
-                inaccessiblePaths = [
-                  "/run/resolvconf"
-                  "-/run/systemd/resolve"
-                ]
-                ++ lib.optionals (!ns.dns.allowHostResolverIPC) [ "/run/nscd" ]
-                ++ lib.optionals (!ns.dns.allowHostResolverIPC) [
-                  "/run/dbus/system_bus_socket"
+                # /etc/resolv.conf may resolve into this directory. Blocking
+                # the parent makes even the bind-mounted file unreadable to
+                # non-root services. Block the resolver IPC endpoints instead.
+                inaccessiblePaths = lib.optionals (!ns.dns.allowHostResolverIPC) [
+                  "-/run/systemd/resolve/io.systemd.Resolve"
+                  "-/run/systemd/resolve/io.systemd.Resolve.Monitor"
+                  "-/run/nscd"
+                  "-/run/dbus/system_bus_socket"
                   "-/var/run/dbus/system_bus_socket"
                 ];
               in

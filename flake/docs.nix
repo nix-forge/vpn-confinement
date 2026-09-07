@@ -44,7 +44,7 @@ _: {
         inherit transformOptions;
       };
 
-      repoBlobBase = "https://github.com/IanHollow/vpn-confinement/blob/main";
+      repoBlobBase = "https://github.com/nix-forge/vpn-confinement/blob/main";
       optionsJsonPath = "${optionsDoc.optionsJSON}/share/doc/nixos/options.json";
 
       generatedMarkdown =
