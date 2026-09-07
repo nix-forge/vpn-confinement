@@ -3,6 +3,8 @@ extend-exclude = [
   "flake.lock",
   "flake/dev/flake.lock",
   "site/bun.lock",
+  # Raw iperf output contains random session identifiers.
+  "site/public/benchmarks/*.json",
   "site/src/content/docs/reference/options-generated.md",
 ]
 

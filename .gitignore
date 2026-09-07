@@ -7,3 +7,5 @@ site/node_modules
 
 # Python test and script bytecode is generated per interpreter.
 __pycache__/
+*.pyc
+result-benchmark

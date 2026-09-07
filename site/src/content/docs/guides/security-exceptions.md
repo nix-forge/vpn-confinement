@@ -42,3 +42,33 @@ for advanced deployments only.
 
 Use this profile when compatibility trade-offs are acceptable and
 destination-constrained policy is required.
+
+## Privileges and inherited sockets
+
+`highAssurance` rejects `CAP_NET_RAW`, `CAP_NET_ADMIN`, and `CAP_SYS_ADMIN` grants, as well as numeric,
+inverted, or otherwise noncanonical capability syntax. Use canonical capability names. An advanced
+workload that needs these privileges must select `vpn.allowUnsafeCapabilities = true`. Raw packet
+access can bypass the namespace's ordinary IP firewall on a host link.
+
+`vpn.allowPrivilegedCommands` is a separate exception for privileged lifecycle commands. The check
+covers `ExecCondition`, all start/stop hooks, `ExecStart`, and `ExecReload`. Use a plain executable
+path without privileged prefixes. Quoted or escaped executable names, standalone semicolon command
+separators, and `!!` compatibility prefixes also need the exception because the conservative check
+does not reproduce systemd's full command parser. Ordinary quoted arguments remain supported.
+Prefer separately trusted setup units over disabling restrictions on application commands.
+
+`vpn.allowHostSockets` acknowledges activation or inherited sockets that cannot be verified in the
+same VPN namespace. The check includes socket activation targets, templates, aliases, and the
+service's `Sockets` setting. Unknown or dynamic references require an exception. A host Unix socket
+can be intentional, but it can also delegate network access to a host process.
+
+The doctor prints these exceptions and effective unsafe capabilities as warnings. `balanced` emits
+configuration warnings for these cases; it does not enforce the stronger profile's rejections.
+
+Inline and store-backed WireGuard keys are rejected in both profiles. A legacy balanced deployment
+can explicitly select `wireguard.allowInsecureKeyMaterial`; `highAssurance` rejects that exception.
+
+Configuration checks cover structured `systemd.sockets` declarations. Raw units from
+`systemd.units`, packaged units, and later runtime changes require deployment review.
+The doctor also inspects systemd's loaded `TriggeredBy` and `Sockets` relationships,
+including packaged activation sockets, and reports unverified namespace attachment.

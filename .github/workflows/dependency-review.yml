@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions:
-      actions: write
+      actions: write # Dispatch the trusted queue reconciler after validation.
     steps:
       - name: Notify the trusted queue reconciler
         env:

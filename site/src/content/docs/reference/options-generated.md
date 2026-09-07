@@ -24,7 +24,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.enable`
 
@@ -44,7 +44,7 @@ true
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces`
 
@@ -58,7 +58,7 @@ Namespace-scoped confinement policies keyed by namespace name.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.derived.hostLink.hostAddressIPv4`
 
@@ -72,7 +72,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.derived.hostLink.nsAddressIPv4`
 
@@ -86,7 +86,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.derived.hostLink.subnetIPv4`
 
@@ -100,7 +100,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.dns.allowHostResolverIPC`
 
@@ -115,7 +115,7 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.dns.mode`
 
@@ -130,7 +130,7 @@ workloads that need it.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.dns.search`
 
@@ -145,7 +145,7 @@ suffixes.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.dns.servers`
 
@@ -159,7 +159,7 @@ Allowed DNS resolver IPs used to generate namespace-local resolv.conf in strict 
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowEssentialIcmp`
 
@@ -173,7 +173,7 @@ true
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowedCidrs`
 
@@ -187,7 +187,7 @@ Allowed destination CIDRs (or literal IPs) for allowList mode. Required in highA
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowedTcpPorts`
 
@@ -201,7 +201,7 @@ Allowed TCP destination ports for allowList mode.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.egress.allowedUdpPorts`
 
@@ -215,7 +215,7 @@ Allowed UDP destination ports for allowList mode.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.egress.mode`
 
@@ -229,7 +229,7 @@ Tunnel egress policy: allow all tunnel traffic or only explicit allowlist rules.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.enable`
 
@@ -249,7 +249,7 @@ true
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 
@@ -263,7 +263,7 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
 
@@ -277,7 +277,7 @@ Host-side veth interface name for hostLink mode.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.hostLink.nsIf`
 
@@ -291,7 +291,7 @@ Namespace-side veth interface name for hostLink mode.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.hostLink.subnetIPv4`
 
@@ -305,11 +305,11 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
 
-TCP ports accepted from hostLink host endpoint into the namespace. Requires hostLink.enable = true.
+Alias of {option}`publishToHost.tcp`.
 
 - **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
@@ -319,7 +319,7 @@ TCP ports accepted from hostLink host endpoint into the namespace. Requires host
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.tcp`
 
@@ -333,7 +333,7 @@ TCP listener ports accepted from the WireGuard interface into the namespace.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.udp`
 
@@ -347,7 +347,7 @@ UDP listener ports accepted from the WireGuard interface into the namespace.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 
@@ -362,12 +362,12 @@ configured.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.publishToHost.tcp`
 
-Simplified host publish abstraction for namespace services. Ports are merged with
-ingress.fromHost.tcp. Non-empty values automatically enable effective host-link wiring.
+Simplified host publish abstraction for namespace services. The legacy ingress.fromHost.tcp name is
+an alias. Non-empty values automatically enable effective host-link wiring.
 
 - **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 - **Default:**
@@ -377,7 +377,7 @@ ingress.fromHost.tcp. Non-empty values automatically enable effective host-link 
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.securityProfile`
 
@@ -392,7 +392,7 @@ explicit evaluation failures.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.allowHostnameEndpoints`
 
@@ -407,7 +407,22 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+## `services.vpnConfinement.namespaces.<name>.wireguard.allowInsecureKeyMaterial`
+
+Compatibility exception for inline or Nix-store WireGuard keys. Rejected in highAssurance. Prefer
+root-owned persistent key files or a runtime secret manager.
+
+- **Type:** boolean
+- **Default:**
+
+```nix
+false
+```
+
+- **Declared by:**
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`
 
@@ -422,7 +437,7 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.fwMark`
 
@@ -437,7 +452,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.interface`
 
@@ -451,7 +466,7 @@ WireGuard interface name managed for this confinement namespace.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
 ## `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
 
@@ -466,7 +481,38 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/default.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/default.nix)
+  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+## `systemd.services.<name>.vpn.allowHostSockets`
+
+Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace
+cannot be verified. Includes host Unix sockets and unresolved socket references.
+
+- **Type:** boolean
+- **Default:**
+
+```nix
+false
+```
+
+- **Declared by:**
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+## `systemd.services.<name>.vpn.allowPrivilegedCommands`
+
+Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command
+executable syntax that cannot be checked conservatively. Applies to all lifecycle commands; prefer
+separate trusted setup units.
+
+- **Type:** boolean
+- **Default:**
+
+```nix
+false
+```
+
+- **Declared by:**
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.allowRootInHighAssurance`
 
@@ -481,7 +527,22 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+## `systemd.services.<name>.vpn.allowUnsafeCapabilities`
+
+Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical
+capability syntax. These can undermine confinement. Prefer a separate privileged helper.
+
+- **Type:** boolean
+- **Default:**
+
+```nix
+false
+```
+
+- **Declared by:**
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.enable`
 
@@ -501,7 +562,7 @@ true
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.extraAddressFamilies`
 
@@ -515,7 +576,7 @@ Additional AddressFamily names appended to RestrictAddressFamilies for this serv
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.hardeningProfile`
 
@@ -529,7 +590,7 @@ Service hardening preset applied on top of confinement wiring.
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.namespace`
 
@@ -544,7 +605,7 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.services.<name>.vpn.restrictBind`
 
@@ -558,7 +619,7 @@ false
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
 ## `systemd.sockets.<name>.vpn.enable`
 
@@ -578,7 +639,7 @@ true
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
+  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
 
 ## `systemd.sockets.<name>.vpn.namespace`
 
@@ -593,4 +654,4 @@ null
 ```
 
 - **Declared by:**
-  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/IanHollow/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
+  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
