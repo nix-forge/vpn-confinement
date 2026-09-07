@@ -16,7 +16,7 @@ Use `vpn-confinement` when you want to:
 - confine only the services that should use VPN egress
 - keep host networking unchanged for non-confined workloads
 - apply DNS and firewall policy at the namespace boundary
-- tear services down when the namespace or WireGuard path disappears
+- stop dependent services when their managed WireGuard unit stops
 
 ## Security characteristics
 
@@ -44,6 +44,8 @@ exact option names, defaults, and configuration details.
 
 If you are deploying this for the first time, start here:
 
+- [`Transmission setup`](./guides/transmission/)
+- [`Diagnostics`](./guides/diagnostics/)
 - [`Common Deployments`](./guides/common-deployments/)
 - [`Reverse Proxy`](./guides/reverse-proxy/)
 - [`Security Profile Decision Matrix`](./guides/security-profile-decision-matrix/)
@@ -91,6 +93,6 @@ Advanced-only examples:
 
 ## Project links
 
-- Repository: [GitHub](https://github.com/IanHollow/vpn-confinement)
+- Repository: [GitHub](https://github.com/nix-forge/vpn-confinement)
 - Community docs: [Contributing](./contributing/), [Security](./security/),
   [Code of Conduct](./code-of-conduct/)

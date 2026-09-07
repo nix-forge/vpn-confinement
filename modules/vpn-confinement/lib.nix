@@ -409,8 +409,159 @@ let
       raw = hexToInt (builtins.substring 0 8 digest);
     in
     intMod raw 4294967294 + 1;
+
+  systemdWords =
+    value:
+    lib.concatMap (
+      item:
+      builtins.filter (word: builtins.isString word && word != "") (builtins.split "[[:space:]]+" item)
+    ) (lib.toList value);
+
+  privilegedCommand =
+    command:
+    let
+      plain = builtins.match "^[[:space:]]*[-@:|]*[/A-Za-z0-9_][A-Za-z0-9_./-]*([[:space:]].*)?$" command;
+      multiple = builtins.match ".*[[:space:]];([[:space:]].*)?$" command != null;
+    in
+    builtins.match "^[[:space:]]*$" command == null
+    && (plain == null || multiple || lib.hasInfix "\n" command || lib.hasInfix "\r" command);
+
+  selectedNamespace =
+    cfg: unit: if unit.vpn.namespace != null then unit.vpn.namespace else cfg.defaultNamespace;
+
+  socketTarget =
+    name: socket:
+    let
+      values = lib.toList (socket.socketConfig.Service or null);
+      configured = if values == [ ] then null else lib.last values;
+      acceptValues = lib.toList (socket.socketConfig.Accept or false);
+      accept = if acceptValues == [ ] then false else lib.last acceptValues;
+      accepting = builtins.elem accept [
+        true
+        1
+        "1"
+        "yes"
+        "true"
+        "on"
+      ];
+      knownAccept =
+        accepting
+        || builtins.elem accept [
+          false
+          0
+          "0"
+          "no"
+          "false"
+          "off"
+          ""
+        ];
+    in
+    if configured != null && configured != "" then
+      configured
+    else if !knownAccept then
+      "<unknown-socket-target>"
+    else
+      "${name}${lib.optionalString accepting "@"}.service";
+
+  serviceMatches =
+    name: service: target:
+    target == "${name}.service"
+    || builtins.elem target (service.aliases or [ ])
+    || (lib.hasSuffix "@" name && lib.hasPrefix (lib.removeSuffix "@" name + "@") target)
+    || (lib.hasInfix "@" name && target == "${builtins.head (lib.splitString "@" name)}@.service");
 in
 {
+  inherit systemdWords selectedNamespace socketTarget;
+
+  privilegedCommandPhases =
+    serviceConfig:
+    builtins.filter (field: builtins.any privilegedCommand (lib.toList (serviceConfig.${field} or [ ])))
+      [
+        "ExecCondition"
+        "ExecStartPre"
+        "ExecStart"
+        "ExecStartPost"
+        "ExecReload"
+        "ExecStop"
+        "ExecStopPost"
+      ];
+
+  unconfinedSockets =
+    cfg: services: sockets: name:
+    let
+      service = services.${name};
+      nsName = selectedNamespace cfg service;
+      explicit = systemdWords (service.serviceConfig.Sockets or [ ]);
+      associated = lib.attrNames (
+        lib.filterAttrs (
+          socketName: socket:
+          (socket.enable or true)
+          && (
+            serviceMatches name service (socketTarget socketName socket)
+            || builtins.match "[A-Za-z0-9_.@:-]+[.]service" (socketTarget socketName socket) == null
+            || builtins.elem "${socketName}.socket" explicit
+            || builtins.any (alias: builtins.elem alias explicit) (socket.aliases or [ ])
+          )
+        ) sockets
+      );
+      resolve =
+        unit:
+        lib.findFirst (
+          socketName:
+          unit == "${socketName}.socket" || builtins.elem unit (sockets.${socketName}.aliases or [ ])
+        ) null (lib.attrNames sockets);
+      unresolved = builtins.filter (unit: resolve unit == null) explicit;
+      confined =
+        socketName:
+        let
+          socket = sockets.${socketName};
+        in
+        nsName != null
+        && (socket.vpn.enable or false)
+        && selectedNamespace cfg socket == nsName
+        && (socket.socketConfig.NetworkNamespacePath or null) == "/run/netns/${nsName}";
+    in
+    unique ((map (n: "${n}.socket") (builtins.filter (n: !confined n) associated)) ++ unresolved);
+
+  unsafeCapabilities =
+    serviceConfig:
+    let
+      caps = map (lib.replaceStrings [ "\"" "'" ] [ "" "" ]) (
+        systemdWords (serviceConfig.CapabilityBoundingSet or "")
+        ++ systemdWords (serviceConfig.AmbientCapabilities or [ ])
+      );
+    in
+    builtins.any (
+      cap:
+      builtins.elem cap [
+        "CAP_NET_ADMIN"
+        "CAP_SYS_ADMIN"
+        "CAP_NET_RAW"
+      ]
+      # Numeric, inverted and escaped forms require an explicit exception.
+      || builtins.match "CAP_[A-Z0-9_]+" cap == null
+    ) caps;
+
+  endpointTableName = name: "vpnc_endpoint_pin_${builtins.hashString "sha256" name}";
+
+  effectiveNamespace =
+    name: ns:
+    let
+      withHostLink = ns.hostLink.enable || ns.publishToHost.tcp != [ ];
+      subnet =
+        if ns.hostLink.subnetIPv4 != null then ns.hostLink.subnetIPv4 else hostLinkSubnetFromNamespace name;
+      pair = deriveHostLinkPair subnet;
+    in
+    {
+      inherit withHostLink;
+      fromHostTcp = unique ns.publishToHost.tcp;
+      hostLink = {
+        subnetIPv4 = subnet;
+        hostAddressIPv4 = if pair == null then null else pair.hostAddressIPv4;
+        nsAddressIPv4 = if pair == null then null else pair.nsAddressIPv4;
+      };
+    };
+
   uniquePorts = unique;
 
   renderNftSetElements = values: "{ ${concatMapStringsSep ", " toString values} }";

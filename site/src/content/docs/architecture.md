@@ -1,182 +1,116 @@
 ---
 title: Architecture
-description: Design and implementation architecture
+description: How namespace policy, WireGuard, and service lifecycle fit together
 ---
 
-This page explains how `vpn-confinement` implements fail-closed VPN confinement
-for selected systemd services.
+Each namespace is a shared network trust domain. Its services share DNS and
+firewall policy. Use separate namespaces for mutually untrusted applications.
 
-## At a glance
+## Traffic path
 
-- The trust boundary is the namespace, not the individual service.
-- The WireGuard interface lives inside that namespace while host networking
-  stays unchanged for non-confined services.
-- Namespace-local nftables and resolver files enforce the policy surface that
-  confined services see.
-- systemd `BindsTo=` relationships make namespace or tunnel loss propagate to
-  dependent services and sockets.
+The module uses `networking.wireguard.interfaces`. NixOS creates the WireGuard
+interface in the host namespace and moves it into `/run/netns/<name>`. WireGuard
+retains its encrypted UDP socket in its birthplace namespace. A confined service
+creates ordinary network sockets inside the confinement namespace.
 
-Use this page to understand the moving parts and lifecycle. Read
-[`Threat Model`](../threat-model/) for explicit guarantees and non-goals, and
-[`Generated Options Reference`](../reference/options-generated/) when tuning a
-real deployment.
+With no host link, that namespace contains loopback and WireGuard. A host link
+adds a veth pair for explicitly permitted host ingress. Namespace nftables uses
+default-drop input, output, and forward chains. Internet traffic is accepted
+only through the WireGuard interface, subject to DNS and egress policy. Established
+connections remain bound to that interface even if a route changes. Host-link
+replies are limited to established TCP connections on published ports, directed
+to the host endpoint. Connection state alone does not authorize another interface.
 
-## Detailed design
+The renderer lives in `modules/vpn-confinement/firewall.nix`. It generates one
+transaction that destroys the previous project table and installs the new one.
+A rejected transaction leaves the previous rules intact. CIDR sets merge
+overlapping intervals. Inactive allowlist settings do not generate rules.
 
-- Services opt in with `systemd.services.<name>.vpn.enable = true`.
-- Socket units opt in with `systemd.sockets.<name>.vpn.enable = true`.
-- In the common path, each vpn-enabled service or socket sets `vpn.namespace`
-  explicitly.
-- Per-service behavior config is limited to namespace attachment and hardening;
-  network policy is namespace-level.
-- `services.vpnConfinement.namespaces.<name>.securityProfile` provides a small,
-  opinionated top-level selector for stronger defaults and assertions.
-- Confinement uses a dedicated Linux network namespace at `/run/netns/<name>`.
-- WireGuard is configured via `networking.wireguard.interfaces.<if>` and
-  assigned with `interfaceNamespace`.
-- The module can also set WireGuard `socketNamespace` for advanced cases, but
-  the recommended path is to leave it unset or use `"init"`.
-- Hostname WireGuard endpoints are treated as an explicit advanced opt-in with
-  `wireguard.allowHostnameEndpoints = true`.
-- `interfaceNamespace` is the main mechanism: the WireGuard link itself is kept
-  inside the confinement namespace.
-- `socketNamespace` controls only the UDP socket birthplace and should be viewed
-  as an advanced escape hatch, not the primary design surface.
-- `wireguard-<if>.service` explicitly requires and orders after the namespace
-  preparation unit and also binds to it for fail-closed teardown.
-- Namespace-local nftables enforces deny-by-default egress and allows only
-  tunnel traffic according to namespace egress mode.
-- Store-generated resolver files are bind-mounted directly into confined units.
-- DNS policy is namespace-scoped and controlled by
-  `services.vpnConfinement.namespaces.<name>.dns.mode`.
-- In `dns.mode = "strict"`, DNS policy blocks non-allowlisted DNS-like traffic
-  on ports `53`, `853`, `5353`, and `5355` before generic tunnel egress allow.
-- `dns.mode = "strict"` is about common resolver leak resistance.
-- `securityProfile = "highAssurance"` defaults `egress.mode = "allowList"` and
-  rejects weaker compatibility paths such as hostname endpoints or host resolver
-  IPC.
-- `securityProfile = "highAssurance"` also rejects inline
-  `networking.wireguard.interfaces.<if>.privateKey` and peer `presharedKey`
-  values; use `privateKeyFile`, `generatePrivateKeyFile`, and
-  `presharedKeyFile` instead.
-- `securityProfile = "highAssurance"` requires non-empty `egress.allowedCidrs`
-  so outbound policy remains destination-constrained.
-- In allowlist mode, narrow ICMP / ICMPv6 error traffic is still permitted for
-  PMTU and control-plane reliability when destination CIDRs are configured.
-- Strict mode also bind-mounts namespace `resolv.conf` and `nsswitch.conf`
-  (`hosts: files myhostname dns`) into confined services while hiding resolver
-  helper paths.
-- In `highAssurance`, vpn-enabled services must run as non-root by default
-  (`DynamicUser = true` or explicit non-root `User`) unless explicitly opted out
-  per service.
-- `dns.allowHostResolverIPC = false` (default) blocks common host resolver
-  helpers (`/run/nscd` and system D-Bus sockets) in strict mode; setting it to
-  `true` opts out of those helper blocks.
-- `dns.mode = "compat"` is a weaker compatibility path that skips strict DNS
-  containment entirely.
-- Egress policy is explicit:
-  - `egress.mode = "allowAllTunnel"`: allow all tunnel egress (after DNS
-    policy).
-  - `egress.mode = "allowList"`: allow only configured ports/CIDRs.
-- nftables rules use named sets for DNS servers, blocked DNS ports, allowed
-  ports, and allowed CIDRs so the policy stays auditable as the ruleset grows.
-- IPv6 defaults to fail-closed
-  (`services.vpnConfinement.namespaces.<name>.ipv6.mode = "disable"`).
-- Namespace lifecycle is on-demand through
-  `vpn-confinement-netns@<name>.service` and cleaned up when unneeded.
-- Namespace setup validates the generated nftables rules before applying them
-  and uses shell traps to clean up partial state on failed starts.
-- Confined services bind to both the namespace unit and the WireGuard unit so
-  namespace teardown propagates cleanly.
-- Optional `vpn.restrictBind = true` derives `SocketBindAllow` /
-  `SocketBindDeny` from namespace ingress policy as defense in depth for
-  service-created listeners when ingress ports are declared.
-- `publishToHost.tcp` is the common-path host ingress abstraction and maps to
-  host-link based ingress behavior.
-- Effective host-link addresses are exported under
-  `services.vpnConfinement.namespaces.<name>.derived.hostLink.*`.
+`lib.nix` centralizes effective host ingress and address calculation. Option
+schema lives in `options.nix`, configuration checks in `assertions.nix`, lifecycle
+units in `lifecycle.nix`, and shared selection in `context.nix`. `policy.nix`
+provides the applied rules and root-only snapshots used by the doctor. Runtime
+diagnostics live in `diagnostics.nix` and `doctor.py`. Service/socket integration
+lives in the extension modules.
 
-## Security model
+## Service attachment and DNS
 
-- Host network remains unchanged unless a service explicitly enables VPN
-  confinement.
-- The trust boundary is the namespace, not the individual service.
-- Confined services fail closed if tunnel dependencies are required and
-  unavailable.
-- Runtime tunnel drops are propagated to vpn-enabled services and sockets with
-  `BindsTo=wireguard-<if>.service`.
-- Namespace teardown is propagated through `BindsTo=vpn-confinement-netns@...`
-  on services, sockets, and generated WireGuard dependency units.
-- DNS leakage is reduced by namespace resolver pinning and blocked DNS-like
-  ports.
-- Literal WireGuard peer endpoints are preferred.
-- Hostname endpoints are permitted only with explicit opt-in and endpoint
-  refresh enabled, and remain outside the module's strict DNS guarantee.
-- Direct resolver API use over D-Bus is outside the strict DNS guarantee unless
-  `dns.allowHostResolverIPC = false` (or equivalent unit-local restrictions).
-- Bind restrictions are supplemental hardening only; nftables remains the
-  primary policy mechanism.
-- Advanced knobs such as `wireguard.socketNamespace` and manual `hostLink.*`
-  tuning are optional escape hatches, not the primary deployment path.
-- vpn-enabled services and sockets must not manually set namespace attachment
-  controls that conflict with module-managed `NetworkNamespacePath` behavior.
+Services opt in using `systemd.services.<name>.vpn`. The module owns
+`NetworkNamespacePath` and rejects conflicting manual namespace settings.
+Opted-in services and sockets are rejected if the global module is disabled.
 
-## Socket activation pattern
+Strict DNS bind-mounts generated resolver and NSS files into each service. It
+blocks access to common host resolver helpers unless explicitly opted out, and
+limits conventional DNS ports before general tunnel egress. Arbitrary encrypted
+DNS through permitted tunnel destinations is a resolver-policy limitation, not
+in itself plaintext DNS leakage to the ISP.
 
-- Recommended default for host-facing services: leave `.socket` in host
-  namespace and run `.service` in VPN namespace.
-- This preserves host listener behavior while confining service-originated
-  outbound traffic.
-- Use socket namespace attachment only when the listening socket itself must be
-  inside the VPN namespace.
+Service hardening drops capabilities by default and provides a strict preset.
+The module does not set `RestrictNetworkInterfaces`: systemd resolves those
+names in the manager's namespace, where the moved WireGuard interface is absent.
+That filter blocked real confined applications in VM tests. Namespace nftables
+is the network enforcement mechanism.
 
-For a practical host reverse-proxy pattern, see
-[`Reverse Proxy`](../guides/reverse-proxy/).
+## Lifecycle
 
-## Limitations
+The namespace preparation unit installs the firewall before bringing up host links
+and must finish before WireGuard starts. Confined
+services and sockets use `BindsTo` and `After` for both dependencies. Stopping a
+managed dependency stops its consumers. `PartOf` propagates a managed WireGuard
+restart to previously active consumers.
 
-- Generic HTTPS-based DoH on port 443 is not reliably detectable with simple
-  port-based policy.
-- DNS-over-HTTPS/DNS-over-QUIC can still traverse generic egress paths unless
-  destination allowlisting is enabled.
-- `networking.wireguard.interfaces.<if>.mtu` remains an upstream WireGuard
-  control. When endpoint pinning is enabled, vpn-confinement owns `.fwMark` so
-  the WireGuard socket mark and nftables policy cannot diverge.
-- This module supports WireGuard integration through
-  `networking.wireguard.interfaces` only.
-- Endpoint pinning is implemented with
-  `wireguard.endpointPinning.enable = true`.
-- Endpoint pinning applies in the effective WireGuard socket birthplace
-  namespace (`init` by default, or custom `wireguard.socketNamespace` when
-  configured).
-- Endpoint pinning requires literal peer endpoints and applies nftables policy
-  keyed by WireGuard fwmark in that birthplace namespace.
-- For strict environments, combine confinement with application policy and
-  egress inspection.
+The upstream WireGuard target normally starts at boot. Namespace creation is
+therefore not guaranteed to be on-demand. Stopping an application alone does not
+necessarily stop WireGuard or remove its namespace.
 
-## Why netns over policy routing
+A remote outage is different from a stopped unit. WireGuard can remain active
+while its peer is unreachable; applications can remain running with traffic
+stalled. Deleting an interface or removing a namespace name outside systemd is
+also different. An existing process may retain the namespace inode. The module
+leaves its firewall intact until the namespace itself is destroyed.
 
-- The module is designed for "only selected services use VPN". A dedicated
-  namespace is a cleaner trust boundary than host-global policy-routing rules.
-- The WireGuard interface is moved into the namespace, so confined cleartext
-  traffic lives inside that namespace boundary.
-- This model minimizes accidental clearnet fallback paths for confined units and
-  keeps host networking behavior unchanged for non-confined services.
+Socket units use explicit shutdown ordering instead of their usual early
+`sockets.target` ordering, avoiding a cycle while waiting for namespace services.
+A separate stop followed by a start does not automatically revive every stopped
+application. Start the application explicitly in that case.
 
-## Compatibility baseline
+## Host communication
 
-- Supported baseline: NixOS unstable.
-- This assumes modern systemd features required by this module, including
-  `NetworkNamespacePath=` and `RestrictNetworkInterfaces=`.
+`publishToHost.tcp` enables a veth pair and permits those ports from its host
+endpoint. It does not bind localhost, configure NAT, create a reverse proxy, or
+request VPN-provider forwarding. Derived addresses are exported under
+`namespaces.<name>.derived.hostLink`.
 
-## Documentation map
+Host network managers are told to leave the module's veths unmanaged. Their
+addresses and routes belong to the confinement module.
 
-- Threat and guarantee boundaries: `threat-model`.
-- Generated option reference: `reference/options-generated`.
+A socket opted into confinement binds inside the namespace. A socket deliberately
+left on the host can pass a host-network file descriptor into a confined service.
+That is an explicit networking exception. Prefer the complete
+[Transmission reverse-proxy recipe](../guides/transmission/) for a first setup.
 
-## Read next
+## Endpoint pinning
 
-- [`Threat Model`](../threat-model/) for guarantees, weaker modes, and
-  non-goals.
-- [`Generated Options Reference`](../reference/options-generated/) for exact
-  option names and defaults.
+Optional endpoint pinning restricts marked, encrypted WireGuard UDP traffic to
+literal configured endpoint tuples. Each namespace has a table name derived from
+a full hash of its name. Different punctuation does not produce shared tables.
+
+For a custom socket birthplace, systemd enters that namespace before launching
+the pinning helper. The nftables process retains only `CAP_NET_ADMIN`. An external
+birthplace must exist before the helper starts; managed birthplace namespaces
+receive dependency wiring automatically.
+
+Endpoint pinning is not a defense against host root, and it does not hide the VPN
+endpoint or traffic patterns. Hostname endpoints require explicit opt-in and
+refresh, and cannot be combined with endpoint pinning.
+
+## Validation
+
+The checks include real non-root service traffic, outage and recovery, host-link
+packet capture with a positive control, IPv6 disable and tunneled transfer,
+namespace socket activation, colliding names, custom birthplace lifecycle,
+invalid firewall replacement, and the Transmission example. The VM suite runs on
+x86_64 Linux. ARM checks currently evaluate configuration only.
+
+Use [Diagnostics](../guides/diagnostics/) to inspect a deployment and
+[Performance](../guides/performance/) for the optional local benchmark.

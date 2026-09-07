@@ -36,6 +36,11 @@ _: {
       };
 
       runtimeTests = {
+        vm-application-privacy = ../tests/nixos/runtime-application-privacy.nix;
+        vm-ipv6 = ../tests/nixos/runtime-ipv6.nix;
+        vm-transmission = ../tests/nixos/runtime-transmission.nix;
+        vm-policy-lifecycle = ../tests/nixos/runtime-policy-lifecycle.nix;
+        vm-runtime-safety = ../tests/nixos/runtime-safety.nix;
         vm-baseline-confinement = ../tests/nixos/baseline-confinement.nix;
         vm-endpoint-pinning-drop = ../tests/nixos/runtime-endpoint-pinning-drop.nix;
         vm-ip-leak-fail-closed = ../tests/nixos/runtime-ip-leak-fail-closed.nix;
@@ -279,25 +284,24 @@ _: {
             baselineService.NetworkNamespacePath == "/run/netns/vpnapps"
             && containsMatch ".*:/etc/resolv\\.conf" baselineService.BindReadOnlyPaths
             && containsMatch ".*:/etc/nsswitch\\.conf" baselineService.BindReadOnlyPaths
-            && containsMatch ".*/run/systemd/resolve" baselineService.InaccessiblePaths
-            && contains "/run/nscd" baselineService.InaccessiblePaths
-            && contains "/run/dbus/system_bus_socket" baselineService.InaccessiblePaths
-            && contains "lo" baselineService.RestrictNetworkInterfaces
-            && contains "wg0" baselineService.RestrictNetworkInterfaces
-            && contains "ve-vpnapps-ns" baselineService.RestrictNetworkInterfaces
+            && contains "-/run/systemd/resolve/io.systemd.Resolve" baselineService.InaccessiblePaths
+            && contains "-/run/nscd" baselineService.InaccessiblePaths
+            && contains "-/run/dbus/system_bus_socket" baselineService.InaccessiblePaths
+            && !(baselineService ? RestrictNetworkInterfaces)
             && contains "vpn-confinement-netns@vpnapps.service" baselineWireguard.after
             && contains "vpn-confinement-netns@vpnapps.service" baselineWireguard.requires
             && contains "vpn-confinement-netns@vpnapps.service" baselineWireguard.bindsTo
           ) "baseline confinement evaluation did not generate the expected namespace, DNS, or unit wiring";
 
           dns-mode-behavior = mkEvalAssertCheck "dns-mode-behavior" (
-            contains "/run/nscd" strictService.InaccessiblePaths
-            && contains "/run/dbus/system_bus_socket" strictService.InaccessiblePaths
+            contains "-/run/systemd/resolve/io.systemd.Resolve" strictService.InaccessiblePaths
+            && contains "-/run/nscd" strictService.InaccessiblePaths
+            && contains "-/run/dbus/system_bus_socket" strictService.InaccessiblePaths
             && !(compatService ? BindReadOnlyPaths)
             && !(compatService ? InaccessiblePaths)
             && containsMatch ".*:/etc/resolv\\.conf" helpersService.BindReadOnlyPaths
-            && !(contains "/run/nscd" (helpersService.InaccessiblePaths or [ ]))
-            && !(contains "/run/dbus/system_bus_socket" (helpersService.InaccessiblePaths or [ ]))
+            && !(contains "-/run/nscd" (helpersService.InaccessiblePaths or [ ]))
+            && !(contains "-/run/dbus/system_bus_socket" (helpersService.InaccessiblePaths or [ ]))
           ) "dns mode evaluation did not preserve the expected strict, compat, and helper IPC behaviors";
 
           multi-namespace-lifecycle = mkEvalAssertCheck "multi-namespace-lifecycle" (
@@ -346,7 +350,8 @@ _: {
                 && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.after
                 && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.requires
                 && contains "vpn-confinement-netns@birthplace.service" endpointPinningCustomUnit.bindsTo
-                && builtins.match ".*ip netns exec birthplace .*" endpointPinningCustomUnit.script != null
+                && endpointPinningCustomUnit.serviceConfig.NetworkNamespacePath == "/run/netns/birthplace"
+                && endpointPinningCustomUnit.serviceConfig.CapabilityBoundingSet == [ "CAP_NET_ADMIN" ]
               )
               "endpoint pinning did not attach policy to the configured custom socket birthplace namespace";
 
@@ -401,8 +406,26 @@ _: {
             && !vpnLib.isValidInterfaceName "-wg0"
           ) "security-sensitive address, namespace, or interface validation accepted an unsafe input";
 
+          diagnostics =
+            pkgs.runCommand "vpn-confinement-diagnostics-tests" { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                cp -r ${../modules} modules
+                mkdir -p tests/eval
+                cp ${../tests/eval/test_doctor.py} tests/eval/test_doctor.py
+                python tests/eval/test_doctor.py
+                touch "$out"
+              '';
+
           options-doc-generation = config.packages.options-doc-markdown;
         }
+        //
+          builtins.mapAttrs (name: passed: mkEvalAssertCheck name passed "VPN policy regression: ${name}")
+            (
+              import ../tests/eval/regressions.nix {
+                inherit lib;
+                pkgs = evalPkgs;
+              }
+            )
         // builtins.mapAttrs mkEvalRejectCheck rejectTests
         // runtimeCheckAttrs
       );
