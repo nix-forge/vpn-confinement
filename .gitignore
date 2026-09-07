@@ -4,3 +4,6 @@ result
 site/.astro
 site/dist
 site/node_modules
+
+# Python test and script bytecode is generated per interpreter.
+__pycache__/
