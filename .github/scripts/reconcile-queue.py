@@ -200,11 +200,12 @@ def dispatch_entry(entry: dict[str, Any]) -> None:
     publish_dispatch_results(ref, sha, validation_runs)
 
 
-def publish_dispatch_results(ref: str, sha: str, runs: list[dict[str, Any]]) -> None:
-    """Expose verified dispatch results to the merge queue's status evaluator."""
-    dispatched = [run for run in runs if run["event"] == "workflow_dispatch"]
-    if not dispatched:
-        return
+def read_statuses(sha: str) -> dict[str, Any]:
+    """Read the latest commit status for every context.
+
+    Returns:
+        Statuses indexed by their exact context names.
+    """
     statuses: list[dict[str, Any]] = []
     page = 1
     while True:
@@ -215,83 +216,118 @@ def publish_dispatch_results(ref: str, sha: str, runs: list[dict[str, Any]]) -> 
         if len(batch) < PAGE_SIZE:
             break
         page += 1
-    latest = {status["context"]: status for status in reversed(statuses)}
-    ready = len(runs) == len(WORKFLOWS) and all(
+    return {status["context"]: status for status in reversed(statuses)}
+
+
+def workflow_set_passed(sha: str, runs: list[dict[str, Any]]) -> bool:
+    """Require the complete configured workflow set on the inspected commit.
+
+    Returns:
+        Whether every workflow finished successfully on this SHA.
+    """
+    return len(runs) == len(WORKFLOWS) and all(
         run["head_sha"] == sha
         and run["status"] == "completed"
         and run["conclusion"] == "success"
         for run in runs
     )
+
+
+def latest_dispatch_jobs(
+    sha: str, runs: list[dict[str, Any]]
+) -> list[dict[str, Any]] | None:
+    """Read dispatch jobs and reject newer runs or attempts.
+
+    Returns:
+        Completed jobs on this commit, or None when the evidence changed.
+    """
     jobs: list[dict[str, Any]] = []
-    if ready:
-        for run in dispatched:
-            page = 1
-            while True:
-                batch = api(
-                    f"repos/{REPOSITORY}/actions/runs/{run['id']}/jobs"
-                    f"?filter=latest&per_page={PAGE_SIZE}&page={page}"
-                )["jobs"]
-                jobs.extend(batch)
-                if len(batch) < PAGE_SIZE:
-                    break
-                page += 1
-            # A rerun can replace the latest attempt while jobs are being read.
-            fresh = api(
-                f"repos/{REPOSITORY}/actions/workflows/{run['queue_workflow']}/runs"
-                f"?head_sha={sha}&per_page=1"
-            )["workflow_runs"]
-            current = fresh[0] if fresh else {}
-            if (
-                current.get("id") != run["id"]
-                or current["run_attempt"] != run["run_attempt"]
-                or current["status"] != "completed"
-                or current["conclusion"] != "success"
-                or current["head_sha"] != sha
-            ):
-                ready = False
+    for run in runs:
+        page = 1
+        while True:
+            batch = api(
+                f"repos/{REPOSITORY}/actions/runs/{run['id']}/jobs"
+                f"?filter=latest&per_page={PAGE_SIZE}&page={page}"
+            )["jobs"]
+            jobs.extend(batch)
+            if len(batch) < PAGE_SIZE:
                 break
-    ready = (
-        ready
-        and bool(jobs)
-        and all(job["head_sha"] == sha and job["status"] == "completed" for job in jobs)
-    )
-    if not ready:
-        # Do not leave a previous attempt's successful adapter statuses green.
-        for status in latest.values():
-            if status.get("description", "").startswith("Mirrored queue job"):
-                publish_status(
-                    ref, sha, latest, status["context"], "pending", status["target_url"]
-                )
-        return
-    names = {job["name"] for job in jobs}
+            page += 1
+        # A separate dispatch or rerun can replace the evidence being inspected.
+        fresh = api(
+            f"repos/{REPOSITORY}/actions/workflows/{run['queue_workflow']}/runs"
+            f"?head_sha={sha}&per_page=1"
+        )["workflow_runs"]
+        current = fresh[0] if fresh else {}
+        expected = {
+            key: run[key]
+            for key in ("id", "run_attempt", "status", "conclusion", "head_sha")
+        }
+        if any(current.get(key) != value for key, value in expected.items()):
+            return None
+    if any(job["head_sha"] != sha or job["status"] != "completed" for job in jobs):
+        return None
+    return jobs
+
+
+def invalidate_results(
+    ref: str, sha: str, latest: dict[str, Any], successful: set[str] | None = None
+) -> None:
+    """Invalidate old adapter results absent from the latest successful jobs."""
     for status in latest.values():
-        if (
-            status.get("description", "").startswith("Mirrored queue job")
-            and status["context"] not in names
+        if status.get("description", "").startswith("Mirrored queue job") and (
+            successful is None or status["context"] not in successful
         ):
             publish_status(
-                ref, sha, latest, status["context"], "pending", status["target_url"]
+                ref,
+                sha,
+                latest,
+                {
+                    "context": status["context"],
+                    "state": "pending",
+                    "target_url": status["target_url"],
+                },
             )
+
+
+def publish_dispatch_results(ref: str, sha: str, runs: list[dict[str, Any]]) -> None:
+    """Expose verified dispatch results to the merge queue's status evaluator."""
+    dispatched = [run for run in runs if run["event"] == "workflow_dispatch"]
+    if not dispatched:
+        return
+    latest = read_statuses(sha)
+    if not workflow_set_passed(sha, runs):
+        invalidate_results(ref, sha, latest)
+        return
+    jobs = latest_dispatch_jobs(sha, dispatched)
+    if not jobs:
+        invalidate_results(ref, sha, latest)
+        return
+    successful = {job["name"] for job in jobs if job["conclusion"] == "success"}
+    invalidate_results(ref, sha, latest, successful)
     for job in jobs:
         # A skipped job is not evidence that validation ran. Never invent a pass.
-        if job["conclusion"] != "success":
-            if job["name"] in latest:
-                publish_status(
-                    ref, sha, latest, job["name"], "pending", job["html_url"]
-                )
-            continue
-        publish_status(ref, sha, latest, job["name"], "success", job["html_url"])
+        if job["conclusion"] == "success":
+            publish_status(
+                ref,
+                sha,
+                latest,
+                {
+                    "context": job["name"],
+                    "state": "success",
+                    "target_url": job["html_url"],
+                },
+            )
 
 
 def publish_status(
     ref: str,
     sha: str,
     latest: dict[str, Any],
-    name: str,
-    state: str,
-    target_url: str,
+    result: dict[str, str],
 ) -> None:
     """Publish one actual job result once, while its queue ref still matches."""
+    name, state, target_url = result["context"], result["state"], result["target_url"]
     previous = latest.get(name, {})
     if previous.get("state") == state and previous.get("target_url") == target_url:
         return

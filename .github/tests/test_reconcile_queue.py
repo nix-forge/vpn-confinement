@@ -191,7 +191,7 @@ class DispatchResultTests(unittest.TestCase):
     def setUp(self) -> None:
         """Create a successful dispatch and one native merge-group run."""
         self.ref = "refs/heads/gh-readonly-queue/main/pr-7-base"
-        self.run: dict[str, Any] = {
+        self.dispatch_run: dict[str, Any] = {
             "id": 1,
             "event": "workflow_dispatch",
             "head_sha": "group",
@@ -200,7 +200,11 @@ class DispatchResultTests(unittest.TestCase):
             "run_attempt": 1,
             "queue_workflow": "ci.yml",
         }
-        self.other: dict[str, Any] = {**self.run, "id": 2, "event": "merge_group"}
+        self.other: dict[str, Any] = {
+            **self.dispatch_run,
+            "id": 2,
+            "event": "merge_group",
+        }
         self.jobs: list[dict[str, Any]] = [
             {
                 "name": "Lint",
@@ -212,10 +216,10 @@ class DispatchResultTests(unittest.TestCase):
         ]
         self.statuses: list[dict[str, Any]] = []
         self.writes: list[dict[str, Any]] = []
-        self.current = self.run.copy()
+        self.current = self.dispatch_run.copy()
         self.current_sha = "group"
 
-    def api(self, path: str, method: str = "GET", data: Any = None) -> Any:
+    def api(self, path: str, method: str = "GET", data: object = None) -> Any:  # ruff: ignore[any-type]
         """Serve run and job metadata and retain published status payloads.
 
         Returns:
@@ -223,8 +227,11 @@ class DispatchResultTests(unittest.TestCase):
 
         Raises:
             AssertionError: An unexpected endpoint was requested.
+
         """
         if method == "POST":
+            if not isinstance(data, dict):
+                raise AssertionError(path)
             self.writes.append(data)
             return None
         if path.endswith("/status") or "/status?" in path:
@@ -241,7 +248,9 @@ class DispatchResultTests(unittest.TestCase):
         """Run the adapter against the selected API fixtures."""
         with patch.object(queue, "api", side_effect=self.api):
             queue.publish_dispatch_results(
-                self.ref, "group", runs if runs is not None else [self.run, self.other]
+                self.ref,
+                "group",
+                runs if runs is not None else [self.dispatch_run, self.other],
             )
 
     def test_success_links_the_exact_completed_job(self) -> None:
@@ -254,7 +263,7 @@ class DispatchResultTests(unittest.TestCase):
 
     def test_missing_workflow_cannot_report_success(self) -> None:
         """An incomplete workflow set leaves validation pending."""
-        self.report([self.run])
+        self.report([self.dispatch_run])
         self.assertEqual(self.writes, [])
 
     def test_pending_or_failed_workflow_cannot_report_success(self) -> None:
@@ -300,7 +309,14 @@ class DispatchResultTests(unittest.TestCase):
 
     def test_separate_newer_run_invalidates_previous_success(self) -> None:
         """A separate newer dispatch cannot inherit an older run's pass."""
-        self.statuses = [{"context": "Lint", "state": "success", "target_url": self.jobs[0]["html_url"], "description": "Mirrored queue job result"}]
+        self.statuses = [
+            {
+                "context": "Lint",
+                "state": "success",
+                "target_url": self.jobs[0]["html_url"],
+                "description": "Mirrored queue job result",
+            }
+        ]
         self.current["id"] = 3
         self.report()
         self.assertEqual([item["state"] for item in self.writes], ["pending"])
