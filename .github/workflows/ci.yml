@@ -88,6 +88,7 @@ jobs:
         run: >-
           nix flake check --keep-going --show-trace --print-build-logs --system ${{ matrix.system }}
   queue-completion:
+    continue-on-error: true
     name: Queue completion callback
     if: always() && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/gh-readonly-queue/main/')
     needs: [flake-lock, format, lint, flake-check]
@@ -100,4 +101,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh workflow run reconcile-merge-queue.yml --ref main -f source_run_id="$GITHUB_RUN_ID"
+        run: |
+          for attempt in 1 2 3; do
+            if gh workflow run reconcile-merge-queue.yml --ref main -f source_run_id="$GITHUB_RUN_ID"; then
+              exit 0
+            fi
+            echo "::warning::Queue completion notification attempt $attempt failed"
+            sleep 5
+          done
+          exit 1
