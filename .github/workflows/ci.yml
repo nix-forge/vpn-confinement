@@ -2,9 +2,6 @@ name: CI
 on:
   pull_request:
   merge_group:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -60,6 +57,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Test merge queue reconciliation
+        run: python3 -m unittest discover -s .github/tests
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@527f17dd63d2d60d3e5552934bc84b9a33a14d11 # v3.22.2
       - name: Run repository hooks
