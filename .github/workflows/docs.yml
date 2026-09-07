@@ -23,10 +23,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@021c8a1bd3570eb21f5c20a054812b0c4d9ca614 # v3.22.3
-      - name: Generate options reference
-        run: bash scripts/generate-options-doc.sh x86_64-linux
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -42,6 +38,10 @@ jobs:
         run: bun install --cwd site --frozen-lockfile
       - name: Audit site dependencies
         run: bun audit --cwd site --audit-level=high
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@021c8a1bd3570eb21f5c20a054812b0c4d9ca614 # v3.22.3
+      - name: Generate options reference
+        run: bash scripts/generate-options-doc.sh x86_64-linux
       - name: Build docs site
         run: bun run --cwd site build
       - name: Check generated documentation
