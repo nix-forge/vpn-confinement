@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
 concurrency:
   group: docs-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-permissions:
-  contents: read
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions: {}
 jobs:
   build:
     name: Build Docs
@@ -39,7 +38,7 @@ jobs:
       - name: Audit site dependencies
         run: bun audit --cwd site --audit-level=high
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@a75d21dababfd55145e2df1db81f3d2d865bec59 # v1.0.0
+        uses: nix-forge/ci/actions/setup-nix@7903659c4b16378411a3ea79dd73cec5c82708cc # v2.0.0
         with:
           cache: 'false'
           cache-scope: docs-build
@@ -56,6 +55,7 @@ jobs:
           path: site/dist
   deploy:
     name: Deploy Docs
+    timeout-minutes: 10
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: build
@@ -80,4 +80,4 @@ jobs:
       actions: write # Dispatch trusted queue validation.
     steps:
       - name: Notify trusted queue reconciler
-        uses: nix-forge/ci/actions/queue-completion@a75d21dababfd55145e2df1db81f3d2d865bec59 # v1.0.0
+        uses: nix-forge/ci/actions/queue-completion@7903659c4b16378411a3ea79dd73cec5c82708cc # v2.0.0
