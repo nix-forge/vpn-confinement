@@ -48,8 +48,9 @@ def properties(unit):
 
 
 def read_fd(fd, limit):
+    """Read a borrowed descriptor; its opener remains responsible for closing it."""
     try:
-        with os.fdopen(fd, "r") as stream:
+        with os.fdopen(fd, "r", closefd=False) as stream:
             if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
                 return None
             value = stream.read(limit + 1)
@@ -60,7 +61,11 @@ def read_fd(fd, limit):
 
 def read_text(path, limit=65536):
     try:
-        return read_fd(os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC), limit)
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            return read_fd(fd, limit)
+        finally:
+            os.close(fd)
     except OSError:
         return None
 
@@ -87,7 +92,12 @@ def read_rooted(root, path, limit=65536):
                                 ctypes.c_size_t(ctypes.sizeof(how)))
         finally:
             os.close(root_fd)
-        return read_fd(fd, limit) if fd >= 0 else None
+        if fd < 0:
+            return None
+        try:
+            return read_fd(fd, limit)
+        finally:
+            os.close(fd)
     except OSError:
         return None
 
@@ -223,6 +233,7 @@ def inspect(name, expected):
                     if line.startswith("nameserver ") and len(line.split()) > 1
                 ]
             except (OSError, UnicodeError):
+                # Keep unknown state so the checks below report the failed inspection.
                 pass
             if attached is not True:
                 issues.append(f"{service}: cannot verify process namespace attachment")
