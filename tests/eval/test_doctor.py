@@ -3,6 +3,7 @@ import importlib.util
 import copy
 import errno
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -140,6 +141,35 @@ class DoctorTests(unittest.TestCase):
             path.write_text("x" * 100)
             self.assertIsNone(doctor.read_text(path, limit=10))
             self.assertEqual(doctor.read_text(path, limit=100), "x" * 100)
+
+    def test_rejected_service_files_do_not_leak_descriptors(self):
+        def open_descriptors():
+            # listdir closes its own directory descriptor before we inspect the entries.
+            return {name for name in os.listdir("/proc/self/fd")
+                    if os.path.islink(f"/proc/self/fd/{name}")}
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "directory").mkdir()
+            (root / "invalid-utf8").write_bytes(b"\xff")
+            (root / "oversized").write_text("x" * 100)
+            os.mkfifo(root / "fifo")
+            for name in ("directory", "invalid-utf8", "oversized", "fifo"):
+                for rooted in (False, True):
+                    with self.subTest(name=name, rooted=rooted):
+                        before = open_descriptors()
+                        try:
+                            if rooted:
+                                result = doctor.read_rooted(root, name, limit=10)
+                            else:
+                                result = doctor.read_text(root / name, limit=10)
+                            self.assertIsNone(result)
+                            self.assertEqual(open_descriptors(), before)
+                        finally:
+                            # Release leaks from a failing implementation so later cases stay independent.
+                            for descriptor in open_descriptors() - before:
+                                os.close(int(descriptor))
+
     def test_failed_command_does_not_return_stderr(self):
         result = subprocess.CompletedProcess([], 1, stdout="secret", stderr="private-key=secret")
         with patch.object(doctor.subprocess, "run", return_value=result):
