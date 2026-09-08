@@ -35,19 +35,14 @@ _: {
         socket-activation-in-namespace = ../tests/nixos/socket-activation-in-namespace.nix;
       };
 
-      runtimeTests = {
-        vm-application-privacy = ../tests/nixos/runtime-application-privacy.nix;
-        vm-ipv6 = ../tests/nixos/runtime-ipv6.nix;
-        vm-transmission = ../tests/nixos/runtime-transmission.nix;
-        vm-policy-lifecycle = ../tests/nixos/runtime-policy-lifecycle.nix;
-        vm-runtime-safety = ../tests/nixos/runtime-safety.nix;
-        vm-baseline-confinement = ../tests/nixos/baseline-confinement.nix;
-        vm-endpoint-pinning-drop = ../tests/nixos/runtime-endpoint-pinning-drop.nix;
-        vm-ip-leak-fail-closed = ../tests/nixos/runtime-ip-leak-fail-closed.nix;
-        vm-dns-leak-strict-vs-compat = ../tests/nixos/runtime-dns-leak-strict-vs-compat.nix;
-        vm-fail-closed-tunnel-drop = ../tests/nixos/runtime-fail-closed-tunnel-drop.nix;
-        vm-multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
-        vm-wireguard-handshake = ../tests/nixos/runtime-wireguard-handshake.nix;
+      runtimeTests = import ./runtime-tests.nix {
+        inherit lib;
+        root = ../tests/nixos;
+        extra = {
+          # These scenarios deliberately have both evaluation and VM coverage.
+          vm-baseline-confinement = ../tests/nixos/baseline-confinement.nix;
+          vm-multi-namespace-lifecycle = ../tests/nixos/multi-namespace-lifecycle.nix;
+        };
       };
 
       rejectTests = {
