@@ -63,3 +63,12 @@ reporting for this repository.
 ## Code of Conduct
 
 By participating in this project, you agree to follow `CODE_OF_CONDUCT.md`.
+
+## Runtime test discovery
+
+Native VM checks discover regular `tests/nixos/runtime-*.nix` files. Adding,
+renaming or removing one updates the check set automatically. Fixtures belong in
+`tests/nixos/fixtures/`, which is outside discovery. The baseline and lifecycle
+scenarios retain both evaluation and runtime coverage. Rejection checks retain
+explicit expected messages so an unrelated evaluation error cannot count as a
+successful security test.
