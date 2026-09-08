@@ -1,6 +1,7 @@
 """Exercise diagnostic failures and the boundary around command output."""
 import importlib.util
 import copy
+import errno
 import json
 import pathlib
 import subprocess
@@ -97,6 +98,33 @@ class DoctorTests(unittest.TestCase):
             (root / "outside").write_text("inside")
             (pathlib.Path(directory) / "outside").write_text("outside")
             self.assertEqual(doctor.read_rooted(root, "/etc/resolv.conf"), "inside")
+
+    def test_rooted_reads_retry_only_transient_containment_races(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "resolver"
+            path.write_text("inside")
+            real_libc = doctor.ctypes.CDLL(None, use_errno=True)
+            real_libc.syscall.restype = doctor.ctypes.c_long
+            for failures, expected, calls in (
+                ([errno.EAGAIN], "inside", 2),
+                ([errno.EAGAIN, errno.EAGAIN], "inside", 3),
+                ([errno.EAGAIN] * 3, None, 3),
+                ([errno.EXDEV], None, 1),
+                ([errno.ELOOP], None, 1),
+                ([errno.ENOENT], None, 1),
+            ):
+                with self.subTest(failures=failures):
+                    errors = iter(failures)
+                    def syscall(*args):
+                        error = next(errors, None)
+                        if error is not None:
+                            doctor.ctypes.set_errno(error)
+                            return -1
+                        return real_libc.syscall(*args)
+                    with patch.object(doctor.ctypes, "CDLL") as library:
+                        library.return_value.syscall.side_effect = syscall
+                        self.assertEqual(doctor.read_rooted(directory, "/resolver"), expected)
+                        self.assertEqual(library.return_value.syscall.call_count, calls)
 
     def test_process_root_reads_reject_magic_links_and_fifos(self):
         with tempfile.TemporaryDirectory() as directory:
