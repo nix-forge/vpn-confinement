@@ -19,6 +19,9 @@ updates:
       github-actions-minor-and-patch:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: bun
     directory: "/site"
     schedule:
