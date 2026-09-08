@@ -1,6 +1,7 @@
 """Local, read-only diagnostics. Never query WireGuard private keys or perform Internet probes."""
 import argparse
 import ctypes
+import errno
 import hashlib
 import ipaddress
 import json
@@ -87,9 +88,14 @@ def read_rooted(root, path, limit=65536):
             how = OpenHow(os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC, 0, 0x10 | 0x02)
             libc = ctypes.CDLL(None, use_errno=True)
             libc.syscall.restype = ctypes.c_long
-            fd = libc.syscall(ctypes.c_long(437), ctypes.c_int(root_fd),
-                                ctypes.c_char_p(os.fsencode(path)), ctypes.byref(how),
-                                ctypes.c_size_t(ctypes.sizeof(how)))
+            # Concurrent renames can make the kernel decline a safe ".." walk.
+            # Retry EAGAIN with the same containment flags, then fail closed.
+            for _ in range(3):
+                fd = libc.syscall(ctypes.c_long(437), ctypes.c_int(root_fd),
+                                    ctypes.c_char_p(os.fsencode(path)), ctypes.byref(how),
+                                    ctypes.c_size_t(ctypes.sizeof(how)))
+                if fd >= 0 or ctypes.get_errno() != errno.EAGAIN:
+                    break
         finally:
             os.close(root_fd)
         if fd < 0:
