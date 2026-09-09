@@ -8,7 +8,9 @@ jobs:
     name: request-review
     permissions:
       pull-requests: write # Update pull request metadata.
-    uses: nix-forge/ci/.github/workflows/request-review.yml@d84cb92725a2ab7eafcdc9d1f1fb7a06048dfa1a # v2.2.0
+    uses: nix-forge/ci/.github/workflows/request-review.yml@78ee44eba73081183f51c85194c6dd9382feb60f # v2.5.0
+    with:
+      reviewer: IanHollow
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
