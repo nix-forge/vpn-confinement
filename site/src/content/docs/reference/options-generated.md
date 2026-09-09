@@ -11,647 +11,1076 @@ Regenerate with:
 bash scripts/generate-options-doc.sh x86_64-linux
 ```
 
-## `services.vpnConfinement.defaultNamespace`
+## services\.vpnConfinement\.enable
 
-Optional default namespace name used by vpn-enabled services and sockets when they do not set
-vpn.namespace.
 
-- **Type:** null or string
-- **Default:**
 
-```nix
-null
-```
+Whether to enable VPN confinement for selected systemd services\.
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.enable`
 
-Whether to enable VPN confinement for selected systemd services.
+*Type:*
+boolean
 
-- **Type:** boolean
-- **Default:**
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Example:**
+
+
+*Example:*
 
 ```nix
 true
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces`
 
-Namespace-scoped confinement policies keyed by namespace name.
 
-- **Type:** attribute set of (submodule)
-- **Default:**
+## services\.vpnConfinement\.defaultNamespace
+
+Optional default namespace name used by vpn-enabled services and sockets when they do not set vpn\.namespace\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces
+
+
+
+Namespace-scoped confinement policies keyed by namespace name\.
+
+
+
+*Type:*
+attribute set of (submodule)
+
+
+
+*Default:*
 
 ```nix
 { }
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.derived.hostLink.hostAddressIPv4`
 
-Computed host-side IPv4 address for the effective hostLink subnet.
 
-- **Type:** null or string (read-only)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.enable
 
-```nix
-null
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.derived.hostLink.nsAddressIPv4`
+Whether to enable VPN confinement namespace\.
 
-Computed namespace-side IPv4 address for the effective hostLink subnet.
 
-- **Type:** null or string (read-only)
-- **Default:**
 
-```nix
-null
-```
+*Type:*
+boolean
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.derived.hostLink.subnetIPv4`
 
-Computed effective hostLink subnet (/30) for this namespace.
-
-- **Type:** null or string (read-only)
-- **Default:**
-
-```nix
-null
-```
-
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
-
-## `services.vpnConfinement.namespaces.<name>.dns.allowHostResolverIPC`
-
-Allow strict-mode services to reach host resolver helper IPC such as nscd or system D-Bus. This
-weakens DNS containment.
-
-- **Type:** boolean
-- **Default:**
+*Default:*
 
 ```nix
 false
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.dns.mode`
 
-DNS containment mode. "strict" is the secure default; "compat" weakens resolver containment for
-workloads that need it.
+*Example:*
 
-- **Type:** one of "strict", "compat"
-- **Default:**
+```nix
+true
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.hostAddressIPv4
+
+
+
+Computed host-side IPv4 address for the effective hostLink subnet\.
+
+
+
+*Type:*
+null or string *(read only)*
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.nsAddressIPv4
+
+
+
+Computed namespace-side IPv4 address for the effective hostLink subnet\.
+
+
+
+*Type:*
+null or string *(read only)*
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.derived\.hostLink\.subnetIPv4
+
+
+
+Computed effective hostLink subnet (/30) for this namespace\.
+
+
+
+*Type:*
+null or string *(read only)*
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.dns\.allowHostResolverIPC
+
+
+
+Allow strict-mode services to reach host resolver helper IPC such
+as nscd or system D-Bus\. This weakens DNS containment\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.dns\.mode
+
+
+
+DNS containment mode\. “strict” is the secure default; “compat”
+weakens resolver containment for workloads that need it\.
+
+
+
+*Type:*
+one of “strict”, “compat”
+
+
+
+*Default:*
 
 ```nix
 "strict"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.dns.search`
 
-DNS search suffixes written to generated resolver config; values must be valid domain-style
-suffixes.
 
-- **Type:** list of string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.dns\.search
 
-```nix
-[ ]
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.dns.servers`
+DNS search suffixes written to generated resolver config; values must be valid domain-style suffixes\.
 
-Allowed DNS resolver IPs used to generate namespace-local resolv.conf in strict mode.
 
-- **Type:** list of string
-- **Default:**
+
+*Type:*
+list of string
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.egress.allowEssentialIcmp`
 
-Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when allowedCidrs are configured.
 
-- **Type:** boolean
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.dns\.servers
+
+
+
+Allowed DNS resolver IPs used to generate namespace-local resolv\.conf in strict mode\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowEssentialIcmp
+
+
+
+Allow narrow ICMP/ICMPv6 error traffic for allowList tunnel egress when allowedCidrs are configured\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
 
 ```nix
 true
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.egress.allowedCidrs`
 
-Allowed destination CIDRs (or literal IPs) for allowList mode. Required in highAssurance.
 
-- **Type:** list of string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowedCidrs
 
-```nix
-[ ]
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.egress.allowedTcpPorts`
+Allowed destination CIDRs (or literal IPs) for allowList mode\. Required in highAssurance\.
 
-Allowed TCP destination ports for allowList mode.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+
+*Type:*
+list of string
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.egress.allowedUdpPorts`
 
-Allowed UDP destination ports for allowList mode.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowedTcpPorts
+
+
+
+Allowed TCP destination ports for allowList mode\.
+
+
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.egress.mode`
 
-Tunnel egress policy: allow all tunnel traffic or only explicit allowlist rules.
 
-- **Type:** one of "allowAllTunnel", "allowList"
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.allowedUdpPorts
+
+
+
+Allowed UDP destination ports for allowList mode\.
+
+
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.egress\.mode
+
+
+
+Tunnel egress policy: allow all tunnel traffic or only explicit allowlist rules\.
+
+
+
+*Type:*
+one of “allowAllTunnel”, “allowList”
+
+
+
+*Default:*
 
 ```nix
 "allowAllTunnel"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.enable`
 
-Whether to enable VPN confinement namespace.
 
-- **Type:** boolean
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.hostLink\.enable
 
-```nix
-false
-```
 
-- **Example:**
 
-```nix
-true
-```
+Enable host-to-namespace veth link for controlled host ingress use cases\.
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.hostLink.enable`
 
-Enable host-to-namespace veth link for controlled host ingress use cases.
+*Type:*
+boolean
 
-- **Type:** boolean
-- **Default:**
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.hostLink.hostIf`
 
-Host-side veth interface name for hostLink mode.
 
-- **Type:** string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.hostLink\.hostIf
+
+
+
+Host-side veth interface name for hostLink mode\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
 
 ```nix
 "vh-f34280bd2454"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.hostLink.nsIf`
 
-Namespace-side veth interface name for hostLink mode.
 
-- **Type:** string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.hostLink\.nsIf
+
+
+
+Namespace-side veth interface name for hostLink mode\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
 
 ```nix
 "vn-7a41d7c9e29c"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.hostLink.subnetIPv4`
 
-Optional hostLink /30 subnet base. Null auto-allocates a deterministic subnet from 169.254.0.0/16.
 
-- **Type:** null or string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.hostLink\.subnetIPv4
+
+
+
+Optional hostLink /30 subnet base\. Null auto-allocates a deterministic subnet from 169\.254\.0\.0/16\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
 
 ```nix
 null
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.ingress.fromHost.tcp`
 
-Alias of {option}`publishToHost.tcp`.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.ingress\.fromHost\.tcp
 
-```nix
-[ ]
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.tcp`
+Alias of ` publishToHost.tcp `\.
 
-TCP listener ports accepted from the WireGuard interface into the namespace.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.ingress.fromTunnel.udp`
 
-UDP listener ports accepted from the WireGuard interface into the namespace.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.ingress\.fromTunnel\.tcp
+
+
+
+TCP listener ports accepted from the WireGuard interface into the namespace\.
+
+
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.ipv6.mode`
 
-IPv6 policy inside this namespace: fail-closed disable, or tunnel when WireGuard IPv6 routes are
-configured.
 
-- **Type:** one of "disable", "tunnel"
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.ingress\.fromTunnel\.udp
+
+
+
+UDP listener ports accepted from the WireGuard interface into the namespace\.
+
+
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.ipv6\.mode
+
+
+
+IPv6 policy inside this namespace: fail-closed disable, or tunnel when WireGuard IPv6 routes are configured\.
+
+
+
+*Type:*
+one of “disable”, “tunnel”
+
+
+
+*Default:*
 
 ```nix
 "disable"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.publishToHost.tcp`
 
-Simplified host publish abstraction for namespace services. The legacy ingress.fromHost.tcp name is
-an alias. Non-empty values automatically enable effective host-link wiring.
 
-- **Type:** list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.publishToHost\.tcp
+
+
+
+Simplified host publish abstraction for namespace services\.
+The legacy ingress\.fromHost\.tcp name is an alias\. Non-empty values
+automatically enable effective host-link wiring\.
+
+
+
+*Type:*
+list of 16 bit unsigned integer; between 0 and 65535 (both inclusive)
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.securityProfile`
 
-Opinionated namespace security preset. "highAssurance" turns weaker compatibility paths into
-explicit evaluation failures.
 
-- **Type:** one of "balanced", "highAssurance"
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.securityProfile
+
+
+
+Opinionated namespace security preset\. “highAssurance” turns
+weaker compatibility paths into explicit evaluation failures\.
+
+
+
+*Type:*
+one of “balanced”, “highAssurance”
+
+
+
+*Default:*
 
 ```nix
 "balanced"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.allowHostnameEndpoints`
 
-Advanced compatibility opt-in for hostname:port WireGuard peer endpoints. Literal IP endpoints
-remain the secure default.
 
-- **Type:** boolean
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.allowHostnameEndpoints
 
-```nix
-false
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.allowInsecureKeyMaterial`
+Advanced compatibility opt-in for hostname:port WireGuard
+peer endpoints\. Literal IP endpoints remain the secure
+default\.
 
-Compatibility exception for inline or Nix-store WireGuard keys. Rejected in highAssurance. Prefer
-root-owned persistent key files or a runtime secret manager.
 
-- **Type:** boolean
-- **Default:**
+
+*Type:*
+boolean
+
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.enable`
 
-Pin WireGuard outer UDP egress to configured literal peer endpoints using host-side nftables policy
-in the socket birthplace namespace path supported by this module.
 
-- **Type:** boolean
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.allowInsecureKeyMaterial
+
+
+
+Compatibility exception for inline or Nix-store WireGuard keys\. Rejected in highAssurance\. Prefer root-owned persistent key files or a runtime secret manager\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.endpointPinning.fwMark`
 
-Optional fwMark used to identify WireGuard outer UDP traffic for endpoint pinning. Null auto-derives
-a deterministic non-zero mark from the interface name.
 
-- **Type:** null or (unsigned integer, meaning >=0)
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.endpointPinning\.enable
+
+
+
+Pin WireGuard outer UDP egress to configured literal peer
+endpoints using host-side nftables policy in the socket
+birthplace namespace path supported by this module\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.endpointPinning\.fwMark
+
+
+
+Optional fwMark used to identify WireGuard outer UDP traffic
+for endpoint pinning\. Null auto-derives a deterministic
+non-zero mark from the interface name\.
+
+
+
+*Type:*
+null or (unsigned integer, meaning >=0)
+
+
+
+*Default:*
 
 ```nix
 null
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.interface`
 
-WireGuard interface name managed for this confinement namespace.
 
-- **Type:** string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.interface
+
+
+
+WireGuard interface name managed for this confinement namespace\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
 
 ```nix
 "wg0"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `services.vpnConfinement.namespaces.<name>.wireguard.socketNamespace`
 
-Advanced WireGuard UDP socket birthplace namespace. Leave this unset for the default path, or use
-"init" when the socket must stay in the host namespace.
 
-- **Type:** null or string
-- **Default:**
+## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.socketNamespace
+
+
+
+Advanced WireGuard UDP socket birthplace namespace\. Leave this
+unset for the default path, or use “init” when the socket must
+stay in the host namespace\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
 
 ```nix
 null
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/options.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
 
-## `systemd.services.<name>.vpn.allowHostSockets`
 
-Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace
-cannot be verified. Includes host Unix sockets and unresolved socket references.
 
-- **Type:** boolean
-- **Default:**
+## systemd\.services\.\<name>\.vpn\.enable
 
-```nix
-false
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.allowPrivilegedCommands`
+Whether to enable run this unit in the VPN confinement namespace\.
 
-Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command
-executable syntax that cannot be checked conservatively. Applies to all lifecycle commands; prefer
-separate trusted setup units.
 
-- **Type:** boolean
-- **Default:**
+
+*Type:*
+boolean
+
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.allowRootInHighAssurance`
 
-Explicit opt-out for high-assurance non-root enforcement. Use only when this service cannot run as
-DynamicUser or a dedicated User.
-
-- **Type:** boolean
-- **Default:**
-
-```nix
-false
-```
-
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
-
-## `systemd.services.<name>.vpn.allowUnsafeCapabilities`
-
-Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical
-capability syntax. These can undermine confinement. Prefer a separate privileged helper.
-
-- **Type:** boolean
-- **Default:**
-
-```nix
-false
-```
-
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
-
-## `systemd.services.<name>.vpn.enable`
-
-Whether to enable run this unit in the VPN confinement namespace.
-
-- **Type:** boolean
-- **Default:**
-
-```nix
-false
-```
-
-- **Example:**
+*Example:*
 
 ```nix
 true
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.extraAddressFamilies`
 
-Additional AddressFamily names appended to RestrictAddressFamilies for this service.
 
-- **Type:** list of string
-- **Default:**
+## systemd\.services\.\<name>\.vpn\.allowHostSockets
+
+
+
+Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified\. Includes host Unix sockets and unresolved socket references\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+
+
+## systemd\.services\.\<name>\.vpn\.allowPrivilegedCommands
+
+
+
+Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command executable syntax that cannot be checked conservatively\. Applies to all lifecycle commands; prefer separate trusted setup units\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+
+
+## systemd\.services\.\<name>\.vpn\.allowRootInHighAssurance
+
+
+
+Explicit opt-out for high-assurance non-root enforcement\. Use only
+when this service cannot run as DynamicUser or a dedicated User\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+
+
+## systemd\.services\.\<name>\.vpn\.allowUnsafeCapabilities
+
+
+
+Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax\. These can undermine confinement\. Prefer a separate privileged helper\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+
+
+## systemd\.services\.\<name>\.vpn\.extraAddressFamilies
+
+
+
+Additional AddressFamily names appended to RestrictAddressFamilies for this service\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
 
 ```nix
 [ ]
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.hardeningProfile`
 
-Service hardening preset applied on top of confinement wiring.
 
-- **Type:** one of "baseline", "strict"
-- **Default:**
+## systemd\.services\.\<name>\.vpn\.hardeningProfile
+
+
+
+Service hardening preset applied on top of confinement wiring\.
+
+
+
+*Type:*
+one of “baseline”, “strict”
+
+
+
+*Default:*
 
 ```nix
 "baseline"
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.namespace`
 
-Namespace name override for this service. Leave unset to use
-services.vpnConfinement.defaultNamespace when one is configured.
 
-- **Type:** null or string
-- **Default:**
+## systemd\.services\.\<name>\.vpn\.namespace
+
+
+
+Namespace name override for this service\. Leave unset to use services\.vpnConfinement\.defaultNamespace when one is configured\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
 
 ```nix
 null
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.services.<name>.vpn.restrictBind`
 
-Restrict service-created listeners to declared namespace ingress ports as defense in depth.
 
-- **Type:** boolean
-- **Default:**
+## systemd\.services\.\<name>\.vpn\.restrictBind
 
-```nix
-false
-```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/service-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
 
-## `systemd.sockets.<name>.vpn.enable`
+Restrict service-created listeners to declared namespace ingress ports as defense in depth\.
 
-Whether to enable run this socket in the VPN confinement namespace.
 
-- **Type:** boolean
-- **Default:**
+
+*Type:*
+boolean
+
+
+
+*Default:*
 
 ```nix
 false
 ```
 
-- **Example:**
+*Declared by:*
+ - [modules/vpn-confinement/service-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/service-extension.nix)
+
+
+
+## systemd\.sockets\.\<name>\.vpn\.enable
+
+
+
+Whether to enable run this socket in the VPN confinement namespace\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
 
 ```nix
 true
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/socket-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
 
-## `systemd.sockets.<name>.vpn.namespace`
 
-Namespace name override for this socket. Leave unset to use services.vpnConfinement.defaultNamespace
-when one is configured.
 
-- **Type:** null or string
-- **Default:**
+## systemd\.sockets\.\<name>\.vpn\.namespace
+
+
+
+Namespace name override for this socket\. Leave unset to use services\.vpnConfinement\.defaultNamespace when one is configured\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
 
 ```nix
 null
 ```
 
-- **Declared by:**
-  - [`modules/vpn-confinement/socket-extension.nix`](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)
+*Declared by:*
+ - [modules/vpn-confinement/socket-extension\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/socket-extension.nix)

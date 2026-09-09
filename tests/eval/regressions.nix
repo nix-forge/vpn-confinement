@@ -1,5 +1,6 @@
 { pkgs, lib }:
 let
+  vpnLib = import ../../modules/vpn-confinement/lib.nix { inherit lib; };
   inherit (import ../../modules/vpn-confinement/firewall.nix { inherit lib; }) mkNftRules;
   eval =
     extra:
@@ -143,6 +144,40 @@ let
       ];
 in
 {
+  stable-derived-network-values =
+    builtins.all
+      (
+        vector:
+        vpnLib.hostLinkSubnetFromNamespace vector.name == vector.subnet
+        && vpnLib.deriveWireguardFwMark vector.name == vector.mark
+      )
+      [
+        {
+          name = "vpnapps";
+          subnet = "169.254.202.92/30";
+          mark = 3209228952;
+        }
+        {
+          name = "vpn.apps";
+          subnet = "169.254.34.152/30";
+          mark = 1967474855;
+        }
+        {
+          name = "vpn-apps";
+          subnet = "169.254.218.232/30";
+          mark = 458438331;
+        }
+        {
+          name = "long-namespace-generated-hostlink";
+          subnet = "169.254.14.20/30";
+          mark = 4261413766;
+        }
+        {
+          name = "a";
+          subnet = "169.254.4.72/30";
+          mark = 3398926611;
+        }
+      ];
   reject-raw-packet-capability = hasError "grants capabilities" raw;
   reject-tab-separated-capability = hasError "grants capabilities" (strict {
     systemd.services.probe.serviceConfig.CapabilityBoundingSet = "CAP_NET_BIND_SERVICE\tCAP_NET_ADMIN";

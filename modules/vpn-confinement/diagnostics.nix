@@ -71,24 +71,29 @@ let
       ) namespaces;
     }
   );
-  doctor = pkgs.writeTextFile {
-    name = "vpn-confinement-doctor";
-    destination = "/bin/vpn-confinement-doctor";
-    executable = true;
-    text =
-      "#!${pkgs.python3}/bin/python3\n"
-      +
-        builtins.replaceStrings
-          [ "@manifest@" "@ip@" "@nft@" "@wg@" "@systemctl@" ]
-          [
-            "${manifest}"
-            "${pkgs.iproute2}/bin/ip"
-            "${pkgs.nftables}/bin/nft"
-            "${pkgs.wireguard-tools}/bin/wg"
-            "${pkgs.systemd}/bin/systemctl"
-          ]
-          (builtins.readFile ./doctor.py);
-  };
+  doctor =
+    pkgs.writers.writePython3Bin "vpn-confinement-doctor"
+      {
+        # Substituted store paths exceed 79 columns; keep all other lint checks.
+        flakeIgnore = [
+          "E501"
+          "W503"
+        ];
+      }
+      (
+        pkgs.replaceVarsWith {
+          name = "vpn-confinement-doctor.py";
+          src = ./doctor.py;
+          replacements = {
+            manifest = toString manifest;
+            ip = lib.getExe' pkgs.iproute2 "ip";
+            nft = lib.getExe' pkgs.nftables "nft";
+            wg = lib.getExe' pkgs.wireguard-tools "wg";
+            systemctl = lib.getExe' pkgs.systemd "systemctl";
+          };
+        }
+      );
+
 in
 {
   config = lib.mkIf cfg.enable { environment.systemPackages = [ doctor ]; };

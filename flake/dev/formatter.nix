@@ -61,6 +61,8 @@
 
     rumdl-check = {
       enable = true;
+      # Preserve upstream nixosOptionsDoc output; validate it by building the site.
+      excludes = [ "site/src/content/docs/reference/options-generated.md" ];
       priority = 200;
     };
 
