@@ -162,7 +162,7 @@ _: {
         name: assertion: message:
         pkgs.runCommand name { } ''
           if [ "${if assertion then "1" else "0"}" -ne 1 ]; then
-            echo ${builtins.toJSON message} >&2
+            printf '%s\n' ${lib.escapeShellArg message} >&2
             exit 1
           fi
           touch "$out"
@@ -275,6 +275,22 @@ _: {
     {
       checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (
         {
+          diagnostic-message-quoting =
+            let
+              message = "quoted 'value' \"double\" $HOME `touch injected` $(touch injected) \\ slash\nsecond line";
+              failure = mkEvalAssertCheck "expected-diagnostic-failure" false message;
+              script = pkgs.writeText "expected-diagnostic-failure.sh" failure.buildCommand;
+              expected = pkgs.writeText "expected-diagnostic.txt" "${message}\n";
+            in
+            pkgs.runCommand "diagnostic-message-quoting" { } ''
+              status=0
+              out="$TMPDIR/unexpected-output" ${lib.getExe pkgs.bash} ${script} 2>actual || status=$?
+              test "$status" = 1
+              cmp ${expected} actual
+              test ! -e injected
+              test ! -e "$TMPDIR/unexpected-output"
+              touch "$out"
+            '';
           baseline-confinement = mkEvalAssertCheck "baseline-confinement" (
             baselineService.NetworkNamespacePath == "/run/netns/vpnapps"
             && containsMatch ".*:/etc/resolv\\.conf" baselineService.BindReadOnlyPaths
@@ -400,6 +416,24 @@ _: {
             && vpnLib.isValidInterfaceName "wg0"
             && !vpnLib.isValidInterfaceName "-wg0"
           ) "security-sensitive address, namespace, or interface validation accepted an unsafe input";
+
+          diagnostics-package =
+            let
+              doctor =
+                lib.findFirst (package: lib.getName package == "vpn-confinement-doctor")
+                  (throw "The enabled module must install its diagnostics command")
+                  baselineCfg.environment.systemPackages;
+            in
+            pkgs.runCommand "vpn-confinement-diagnostics-package" { } ''
+              program=${lib.getExe doctor}
+              test "$(grep -c '^#!' "$program")" = 1
+              if grep -E '@(manifest|ip|nft|wg|systemctl)@' "$program"; then
+                echo "Diagnostics contains an unsubstituted command or manifest" >&2
+                exit 1
+              fi
+              "$program" --help > "$out"
+              grep -F usage: "$out"
+            '';
 
           diagnostics =
             pkgs.runCommand "vpn-confinement-diagnostics-tests" { nativeBuildInputs = [ pkgs.python3 ]; }

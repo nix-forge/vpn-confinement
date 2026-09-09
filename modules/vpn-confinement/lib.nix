@@ -3,7 +3,6 @@ let
   inherit (lib)
     all
     concatMapStringsSep
-    foldl'
     hasInfix
     length
     optionalString
@@ -36,61 +35,6 @@ let
       canonical = builtins.stringLength value <= 5 && builtins.match "^(0|[1-9][0-9]*)$" value != null;
     in
     if canonical then builtins.fromJSON value else null;
-
-  intMod = a: b: a - (builtins.div a b) * b;
-
-  stringChars =
-    value: builtins.genList (idx: builtins.substring idx 1 value) (builtins.stringLength value);
-
-  hexDigitValue =
-    digit:
-    if digit == "0" then
-      0
-    else if digit == "1" then
-      1
-    else if digit == "2" then
-      2
-    else if digit == "3" then
-      3
-    else if digit == "4" then
-      4
-    else if digit == "5" then
-      5
-    else if digit == "6" then
-      6
-    else if digit == "7" then
-      7
-    else if digit == "8" then
-      8
-    else if digit == "9" then
-      9
-    else if digit == "a" || digit == "A" then
-      10
-    else if digit == "b" || digit == "B" then
-      11
-    else if digit == "c" || digit == "C" then
-      12
-    else if digit == "d" || digit == "D" then
-      13
-    else if digit == "e" || digit == "E" then
-      14
-    else if digit == "f" || digit == "F" then
-      15
-    else
-      null;
-
-  hexToInt =
-    value:
-    foldl' (
-      acc: digit:
-      if acc == null then
-        null
-      else
-        let
-          parsed = hexDigitValue digit;
-        in
-        if parsed == null then null else acc * 16 + parsed
-    ) 0 (stringChars value);
 
   isValidHextet = value: builtins.match "^[0-9A-Fa-f]{1,4}$" value != null;
 
@@ -355,7 +299,7 @@ let
     && parsed.prefix == 30
     && lastOctet != null
     && lastOctet <= 252
-    && intMod lastOctet 4 == 0;
+    && lib.mod lastOctet 4 == 0;
 
   deriveHostLinkPair =
     subnet:
@@ -364,7 +308,7 @@ let
       octets = if parsed == null then [ ] else splitString "." parsed.address;
       lastOctet = if length octets == 4 then parseNumber (builtins.elemAt octets 3) else null;
       prefixValid = parsed != null && parsed.hasPrefix && parsed.prefix == 30;
-      baseValid = lastOctet != null && lastOctet <= 252 && intMod lastOctet 4 == 0;
+      baseValid = lastOctet != null && lastOctet <= 252 && lib.mod lastOctet 4 == 0;
       prefix = concatMapStringsSep "." (idx: builtins.elemAt octets idx) [
         0
         1
@@ -386,10 +330,10 @@ let
     namespaceName:
     let
       digest = builtins.hashString "sha256" namespaceName;
-      idx = intMod (hexToInt (builtins.substring 0 8 digest)) 16384;
+      idx = lib.mod (lib.fromHexString (builtins.substring 0 8 digest)) 16384;
       base = idx * 4;
       third = builtins.div base 256;
-      fourth = intMod base 256;
+      fourth = lib.mod base 256;
     in
     "169.254.${toString third}.${toString fourth}/30";
 
@@ -406,9 +350,9 @@ let
     interfaceName:
     let
       digest = builtins.hashString "sha256" interfaceName;
-      raw = hexToInt (builtins.substring 0 8 digest);
+      raw = lib.fromHexString (builtins.substring 0 8 digest);
     in
-    intMod raw 4294967294 + 1;
+    lib.mod raw 4294967294 + 1;
 
   systemdWords =
     value:

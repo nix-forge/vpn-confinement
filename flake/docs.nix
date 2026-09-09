@@ -29,7 +29,13 @@ _: {
           declarationString = toString declaration;
           localPathMatch = builtins.match ".*(modules/vpn-confinement/.*\\.nix)" declarationString;
         in
-        if localPathMatch == null then declarationString else builtins.head localPathMatch;
+        if localPathMatch == null then
+          declarationString
+        else
+          {
+            name = builtins.head localPathMatch;
+            url = "${repoBlobBase}/${builtins.head localPathMatch}";
+          };
 
       transformOptions =
         option:
@@ -45,118 +51,34 @@ _: {
       };
 
       repoBlobBase = "https://github.com/nix-forge/vpn-confinement/blob/main";
-      optionsJsonPath = "${optionsDoc.optionsJSON}/share/doc/nixos/options.json";
+      preamble = pkgs.writeText "vpn-confinement-options-preamble.md" ''
+        ---
+        title: Generated Options
+        description: Auto-generated option reference from nixosOptionsDoc
+        ---
 
-      generatedMarkdown =
-        pkgs.runCommand "vpn-confinement-options-generated.md" { nativeBuildInputs = [ pkgs.python3 ]; }
-          ''
-            python - <<'PY'
-            import json
-            import os
-            import pathlib
-            import re
-            import textwrap
+        This file is generated from module option declarations using `pkgs.nixosOptionsDoc`.
 
-            repo_blob_base = "${repoBlobBase}"
-            options_json_path = pathlib.Path("${optionsJsonPath}")
-            output_path = pathlib.Path(os.environ["out"])
+        Regenerate with:
 
-            options = json.loads(options_json_path.read_text())
-            option_names = sorted(options)
+        ```bash
+        bash scripts/generate-options-doc.sh x86_64-linux
+        ```
 
-            def literal_text(value):
-                if value is None:
-                    return None
-                if isinstance(value, dict):
-                    text = value.get("text")
-                    if text is not None:
-                        return str(text).strip()
-                return str(value).strip()
+      '';
 
-            def wrap_markdown(text, *, initial_indent="", subsequent_indent=""):
-                return textwrap.wrap(
-                    " ".join(text.split()),
-                    width=100,
-                    initial_indent=initial_indent,
-                    subsequent_indent=subsequent_indent,
-                    break_long_words=False,
-                    break_on_hyphens=False,
-                )
-
-            lines = [
-                "---",
-                "title: Generated Options",
-                "description: Auto-generated option reference from nixosOptionsDoc",
-                "---",
-                "",
-                "This file is generated from module option declarations using `pkgs.nixosOptionsDoc`.",
-                "",
-                "Regenerate with:",
-                "",
-                "```bash",
-                "bash scripts/generate-options-doc.sh x86_64-linux",
-                "```",
-                "",
-            ]
-
-            for name in option_names:
-                option = options[name]
-                description = str(option.get("description", "")).strip()
-                option_type = str(option.get("type", "unknown")).strip()
-                if option.get("readOnly"):
-                    option_type = f"{option_type} (read-only)"
-
-                lines.append(f"## `{name}`")
-                lines.append("")
-
-                if description:
-                    lines.extend(wrap_markdown(description))
-                    lines.append("")
-
-                lines.extend(
-                    wrap_markdown(
-                        f"**Type:** {option_type}",
-                        initial_indent="- ",
-                        subsequent_indent="  ",
-                    )
-                )
-
-                default = literal_text(option.get("default"))
-                if default:
-                    lines.append("- **Default:**")
-                    lines.append("")
-                    lines.append("```nix")
-                    lines.append(default)
-                    lines.append("```")
-                    lines.append("")
-
-                example = literal_text(option.get("example"))
-                if example:
-                    lines.append("- **Example:**")
-                    lines.append("")
-                    lines.append("```nix")
-                    lines.append(example)
-                    lines.append("```")
-                    lines.append("")
-
-                declarations = option.get("declarations", [])
-                if declarations:
-                    lines.append("- **Declared by:**")
-                    for declaration in declarations:
-                        declaration_string = str(declaration).strip()
-                        match = re.search(r"(modules/vpn-confinement/.*\\.nix)$", declaration_string)
-                        relative_path = match.group(1) if match else declaration_string
-                        if relative_path.startswith("modules/vpn-confinement/"):
-                            url = f"{repo_blob_base}/{relative_path}"
-                            lines.append(f"  - [`{relative_path}`]({url})")
-                        else:
-                            lines.append(f"  - `{relative_path}`")
-
-                lines.append("")
-
-            output_path.write_text("\n".join(lines).rstrip() + "\n")
-            PY
-          '';
+      generatedMarkdown = pkgs.runCommand "vpn-confinement-options-generated.md" { } ''
+        # Keep nixosOptionsDoc's rendering, with a canonical final newline.
+        awk '
+          NF {
+            for (i = 0; i < blank; i++) print ""
+            blank = 0
+            print
+            next
+          }
+          { blank++ }
+        ' ${preamble} ${optionsDoc.optionsCommonMark} > "$out"
+      '';
     in
     {
       packages = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
