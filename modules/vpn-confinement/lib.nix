@@ -364,11 +364,63 @@ let
   privilegedCommand =
     command:
     let
-      plain = builtins.match "^[[:space:]]*[-@:|]*[/A-Za-z0-9_][A-Za-z0-9_./-]*([[:space:]].*)?$" command;
-      multiple = builtins.match ".*[[:space:]];([[:space:]].*)?$" command != null;
+      # A final line ending from a generated Exec setting is whitespace, not
+      # another command. Internal line endings remain rejected below.
+      normalized = lib.strings.trimWith { end = true; } command;
+      plain = builtins.match "^[[:space:]]*[-@:|]*[/A-Za-z0-9_][A-Za-z0-9_./-]*([[:space:]].*)?$" normalized;
+      # Only literal absolute paths with the same safe path alphabet as plain
+      # commands. No escapes, expansions, embedded quotes or quoted prefixes.
+      quoted = builtins.match "^[[:space:]]*(\"/[A-Za-z0-9_./-]+\"|'/[A-Za-z0-9_./-]+')([[:space:]].*)?$" normalized;
+      multiple = builtins.match ".*[[:space:]];([[:space:]].*)?$" normalized != null;
     in
-    builtins.match "^[[:space:]]*$" command == null
-    && (plain == null || multiple || lib.hasInfix "\n" command || lib.hasInfix "\r" command);
+    normalized != ""
+    && (
+      (plain == null && quoted == null)
+      || multiple
+      || lib.hasInfix "\n" normalized
+      || lib.hasInfix "\r" normalized
+    );
+
+  # Diagnostics do not reinterpret encoded or quoted prefixes as executable syntax.
+  commandRisk =
+    command:
+    if !privilegedCommand command then
+      null
+    else if builtins.match "^[[:space:]]*[-@:|+!]*[+!].*$" command != null then
+      "privileged"
+    else
+      "unverified";
+
+  commandFields = [
+    "ExecCondition"
+    "ExecStartPre"
+    "ExecStart"
+    "ExecStartPost"
+    "ExecReload"
+    "ExecReloadPost"
+    "ExecStop"
+    "ExecStopPost"
+  ];
+
+  commandRiskPhases =
+    risk: serviceConfig:
+    builtins.filter (
+      field:
+      builtins.any (command: commandRisk command == risk) (lib.toList (serviceConfig.${field} or [ ]))
+    ) commandFields;
+
+  commandWarnings =
+    serviceConfig:
+    let
+      privileged = commandRiskPhases "privileged" serviceConfig;
+      unverified = commandRiskPhases "unverified" serviceConfig;
+    in
+    lib.optionals (privileged != [ ]) [
+      "privileged command prefixes (+/!/!!) in ${lib.concatStringsSep ", " privileged}; these prefixes change systemd privilege or sandbox handling"
+    ]
+    ++ lib.optionals (unverified != [ ]) [
+      "unverified executable syntax in ${lib.concatStringsSep ", " unverified}; the conservative check cannot verify this executable syntax, command separators, or internal line breaks. This does not confirm a privileged prefix or a confinement bypass"
+    ];
 
   selectedNamespace =
     cfg: unit: if unit.vpn.namespace != null then unit.vpn.namespace else cfg.defaultNamespace;
@@ -415,20 +467,18 @@ let
     || (lib.hasInfix "@" name && target == "${builtins.head (lib.splitString "@" name)}@.service");
 in
 {
-  inherit systemdWords selectedNamespace socketTarget;
+  inherit
+    systemdWords
+    selectedNamespace
+    socketTarget
+    commandWarnings
+    ;
 
   privilegedCommandPhases =
     serviceConfig:
-    builtins.filter (field: builtins.any privilegedCommand (lib.toList (serviceConfig.${field} or [ ])))
-      [
-        "ExecCondition"
-        "ExecStartPre"
-        "ExecStart"
-        "ExecStartPost"
-        "ExecReload"
-        "ExecStop"
-        "ExecStopPost"
-      ];
+    builtins.filter (
+      field: builtins.any privilegedCommand (lib.toList (serviceConfig.${field} or [ ]))
+    ) commandFields;
 
   unconfinedSockets =
     cfg: services: sockets: name:

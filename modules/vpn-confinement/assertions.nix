@@ -327,13 +327,92 @@ let
       service = config.systemd.services.${serviceName};
       ns = if nsName == null then null else attrByPath [ nsName ] null cfg.namespaces;
       highAssurance = ns != null && ns.securityProfile == "highAssurance";
+      enforced = ns != null && ns.servicePolicy == "enforced";
+      validateServices = highAssurance || enforced;
+      validateNonRoot = validateServices && (enforced || !service.vpn.allowRootInHighAssurance);
+      exceptionFlags = builtins.filter (flag: service.vpn.${flag}) [
+        "allowRootInHighAssurance"
+        "allowUnsafeCapabilities"
+        "allowPrivilegedCommands"
+        "allowHostSockets"
+      ];
       serviceConfig = service.serviceConfig or { };
       user = serviceConfig.User or null;
       dynamicUser = serviceConfig.DynamicUser or false;
       rootLike = user == null || user == "" || user == "root" || user == "0";
+      knownRootUser =
+        name:
+        builtins.any (account: account.name == name && (account.uid or null) == 0) (
+          lib.attrValues config.users.users
+        );
+      validatedRootLike =
+        rootLike
+        || user == 0
+        || (user != null && !(builtins.isString user || builtins.isInt user))
+        || (builtins.isString user && (builtins.match "0+" user != null || knownRootUser user));
+      # DynamicUser reuses a static account with the unit-derived name when
+      # User is absent. Check known literal account names without predicting
+      # systemd's hash fallback or arbitrary runtime NSS results.
+      implicitUser = builtins.head (lib.splitString "@" (lib.removeSuffix ".service" service.name));
+      implicitRoot =
+        builtins.match "[A-Za-z_][A-Za-z0-9_-]*" implicitUser != null
+        && (implicitUser == "root" || knownRootUser implicitUser);
+      dynamicNonRoot = dynamicUser == true && (user == null || user == "") && !implicitRoot;
+      boundingSet = serviceConfig.CapabilityBoundingSet or null;
+      boundingSetSpecified =
+        builtins.isString boundingSet
+        || (
+          builtins.isList boundingSet && boundingSet != [ ] && builtins.all builtins.isString boundingSet
+        );
+      emptyReset = value: builtins.isString value && lib.strings.trim value == "";
+      clearsBoundingSet =
+        emptyReset boundingSet
+        || (builtins.isList boundingSet && boundingSet != [ ] && builtins.all emptyReset boundingSet);
       expectedNamespacePath = if nsName == null then "/run/netns/<namespace>" else namespacePath nsName;
     in
     [
+      {
+        assertion =
+          !validateNonRoot
+          || !(
+            builtins.isString user && (lib.hasInfix "%" user || builtins.match "[^[:space:]]*" user == null)
+          );
+        message = "systemd.services.${serviceName} requires a literal User without systemd specifiers or whitespace for non-root validation. Set a dedicated non-root User or use DynamicUser without User.";
+      }
+      {
+        assertion = !enforced || exceptionFlags == [ ];
+        message = "systemd.services.${serviceName} has servicePolicy = enforced and rejects service exception flags: ${lib.concatStringsSep ", " exceptionFlags}. Remove these flags and satisfy the service checks.";
+      }
+      {
+        assertion =
+          !enforced
+          || (clearsBoundingSet && vpnLib.systemdWords (serviceConfig.AmbientCapabilities or [ ]) == [ ]);
+        message =
+          "systemd.services.${serviceName} has servicePolicy = enforced and requires empty CapabilityBoundingSet and AmbientCapabilities. Set CapabilityBoundingSet = "
+          + builtins.toJSON ""
+          + "; an empty list omits the clearing directive. Move privileged setup into a separate trusted unit.";
+      }
+      {
+        assertion =
+          !highAssurance || enforced || service.vpn.allowUnsafeCapabilities || boundingSetSpecified;
+        message = "systemd.services.${serviceName} requires an explicit CapabilityBoundingSet assignment for highAssurance. An empty list omits the directive and leaves systemd's default bounding set. Set an empty string to clear capabilities or explicitly acknowledge the risk with vpn.allowUnsafeCapabilities in profile mode.";
+      }
+      {
+        assertion =
+          !validateServices
+          || (!enforced && service.vpn.allowPrivilegedCommands)
+          || (serviceConfig.PermissionsStartOnly or false) == false;
+        message = "systemd.services.${serviceName} requires PermissionsStartOnly to be unset or false. This legacy setting bypasses service sandboxing for lifecycle commands; move privileged setup into a separate trusted unit. ${
+          if enforced then
+            "servicePolicy = enforced does not permit command exceptions."
+          else
+            "highAssurance requires vpn.allowPrivilegedCommands = true to explicitly acknowledge this risk."
+        }";
+      }
+      {
+        assertion = !enforced || (serviceConfig.NoNewPrivileges or false) == true;
+        message = "systemd.services.${serviceName} has servicePolicy = enforced and requires NoNewPrivileges = true.";
+      }
       {
         assertion = nsName != null;
         message = "systemd.services.${serviceName}.vpn.enable requires vpn.namespace to be set, or services.vpnConfinement.defaultNamespace to be configured explicitly.";
@@ -362,33 +441,53 @@ let
       }
       {
         assertion =
-          !highAssurance || service.vpn.allowUnsafeCapabilities || !(vpnLib.unsafeCapabilities serviceConfig);
-        message = "systemd.services.${serviceName} grants capabilities that can undermine confinement. Use canonical capability names, remove CAP_NET_ADMIN/CAP_SYS_ADMIN/CAP_NET_RAW or explicitly set vpn.allowUnsafeCapabilities = true.";
+          !validateServices
+          || (!enforced && service.vpn.allowUnsafeCapabilities)
+          || !(vpnLib.unsafeCapabilities serviceConfig);
+        message =
+          "systemd.services.${serviceName} grants capabilities that can undermine confinement. "
+          + (
+            if enforced then
+              "Remove capabilities; servicePolicy = enforced does not permit capability exceptions."
+            else
+              "Use canonical capability names, remove CAP_NET_ADMIN/CAP_SYS_ADMIN/CAP_NET_RAW or explicitly set vpn.allowUnsafeCapabilities = true."
+          );
       }
       {
         assertion =
-          !highAssurance
-          || service.vpn.allowPrivilegedCommands
+          !validateServices
+          || (!enforced && service.vpn.allowPrivilegedCommands)
           || vpnLib.privilegedCommandPhases serviceConfig == [ ];
-        message = "systemd.services.${serviceName} has a privileged command or ambiguous executable syntax in ${lib.concatStringsSep ", " (vpnLib.privilegedCommandPhases serviceConfig)}. Use a plain executable or explicitly set vpn.allowPrivilegedCommands = true.";
+        message = "systemd.services.${serviceName} has ${lib.concatStringsSep "; " (vpnLib.commandWarnings serviceConfig)}. Use a plain executable without privileged prefixes, or a separate trusted setup unit. ${
+          if enforced then
+            "servicePolicy = enforced does not permit command exceptions."
+          else
+            "highAssurance rejects these commands unless vpn.allowPrivilegedCommands = true explicitly acknowledges the risk."
+        }";
       }
       {
         assertion =
-          !highAssurance
-          || service.vpn.allowHostSockets
+          !validateServices
+          || (!enforced && service.vpn.allowHostSockets)
           || vpnLib.unconfinedSockets cfg config.systemd.services config.systemd.sockets serviceName == [ ];
         message = "systemd.services.${serviceName} has unverified host activation or inherited sockets: ${
           lib.concatStringsSep ", " (
             vpnLib.unconfinedSockets cfg config.systemd.services config.systemd.sockets serviceName
           )
-        }. Confine the sockets to the same namespace or explicitly set vpn.allowHostSockets = true.";
+        }. ${
+          if enforced then
+            "Confine the sockets to the same namespace. servicePolicy = enforced does not permit host socket exceptions."
+          else
+            "Confine the sockets to the same namespace or explicitly set vpn.allowHostSockets = true."
+        }";
       }
       {
-        assertion =
-          !highAssurance
-          || service.vpn.allowRootInHighAssurance
-          || (!rootLike || (dynamicUser && (user == null || user == "")));
-        message = "systemd.services.${serviceName} is in high-assurance namespace ${nsDisplay} and must run non-root. Set serviceConfig.DynamicUser = true or non-root serviceConfig.User, or explicitly opt out with vpn.allowRootInHighAssurance = true.";
+        assertion = !validateNonRoot || !validatedRootLike || dynamicNonRoot;
+        message =
+          if enforced then
+            "systemd.services.${serviceName} is in namespace ${nsDisplay} and must run non-root. Set serviceConfig.DynamicUser = true or a dedicated non-root serviceConfig.User. servicePolicy = enforced does not permit root exceptions."
+          else
+            "systemd.services.${serviceName} is in high-assurance namespace ${nsDisplay} and must run non-root. Set serviceConfig.DynamicUser = true or non-root serviceConfig.User, or explicitly opt out with vpn.allowRootInHighAssurance = true.";
       }
     ]
   ) vpnEnabledServiceNames;
@@ -469,9 +568,7 @@ let
     lib.optionals (vpnLib.unsafeCapabilities sc) [
       "systemd.services.${name} grants unsafe or noncanonical capabilities, including CAP_NET_ADMIN/CAP_SYS_ADMIN/CAP_NET_RAW; a compromised process may bypass confinement."
     ]
-    ++ lib.optionals (vpnLib.privilegedCommandPhases sc != [ ]) [
-      "systemd.services.${name} has privileged or unverified command syntax in ${lib.concatStringsSep ", " (vpnLib.privilegedCommandPhases sc)}. These commands may bypass service hardening."
-    ]
+    ++ map (warning: "systemd.services.${name} has ${warning}.") (vpnLib.commandWarnings sc)
     ++
       lib.optionals
         (vpnLib.unconfinedSockets cfg config.systemd.services config.systemd.sockets name != [ ])

@@ -11,6 +11,16 @@ Use this quick matrix to choose profile mode.
 | Private APIs, fixed backup endpoints, controlled webhook targets | `highAssurance`                | Destination-constrained egress and stricter assertions are a good fit.      |
 | Mixed workloads with unclear requirements                        | `balanced` first, then tighten | Start stable, then move namespaces/apps to `highAssurance` where practical. |
 
+For general outbound applications that can run without privileges, combine `balanced`
+with namespace `servicePolicy = "enforced"`. This keeps changing tunnel destinations
+available while requiring non-root execution, no capabilities, `NoNewPrivileges`, verified
+lifecycle command syntax and confined activation sockets. It forbids the four service
+exception flags. It does not select the strict filesystem sandbox preset automatically.
+
+The default `servicePolicy = "profile"` preserves the profile behavior shown above,
+including explicit historical high-assurance exceptions. See
+[service validation and exceptions](security-exceptions.md#service-validation-independent-of-destinations).
+
 ## Rule of thumb
 
 - If you cannot confidently maintain narrow destination allowlists, use

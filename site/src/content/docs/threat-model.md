@@ -44,6 +44,13 @@ VPN namespace need `vpn.allowHostSockets`. These are separate exceptions from ro
 Explicit root still
 requires `vpn.allowRootInHighAssurance`, even with `DynamicUser = true`.
 
+Namespace `servicePolicy = "enforced"` adds service validation independent of egress
+mode. It requires non-root execution, `NoNewPrivileges`, empty capability sets, verified
+lifecycle executable syntax and confined activation or inherited sockets. All four service
+exception flags are rejected. This can accompany `balanced` for dynamic peers without
+claiming destination-constrained egress. The default `servicePolicy = "profile"` retains
+the high-assurance exception behavior described above.
+
 Choose narrow CIDRs deliberately. A non-empty list containing `0.0.0.0/0` does
 not meaningfully restrict IPv4 destinations. Stronger profile naming does not
 turn a broad allowlist into an exfiltration defense.

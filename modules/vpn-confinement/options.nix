@@ -40,6 +40,23 @@ in
                 '';
               };
 
+              servicePolicy = mkOption {
+                type = types.enum [
+                  "profile"
+                  "enforced"
+                ];
+                default = "profile";
+                description = ''
+                  Service privilege validation, independent of tunnel destination policy.
+                  "profile" preserves securityProfile behavior, including explicit
+                  highAssurance exceptions. "enforced" requires non-root services,
+                  NoNewPrivileges, empty capability sets, verified lifecycle command syntax,
+                  and verified socket confinement. It rejects all service exception
+                  flags and works with balanced and allowAllTunnel. Selecting
+                  "profile" never disables highAssurance's existing checks.
+                '';
+              };
+
               wireguard = {
                 allowInsecureKeyMaterial = mkOption {
                   type = types.bool;
