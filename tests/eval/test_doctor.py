@@ -1,5 +1,7 @@
 """Exercise diagnostic failures and the boundary around command output."""
 import importlib.util
+import contextlib
+import io
 import copy
 import errno
 import json
@@ -17,6 +19,28 @@ spec.loader.exec_module(doctor)
 
 
 class DoctorTests(unittest.TestCase):
+    def test_text_output_reports_enforced_service_policy(self):
+        configured = {
+            "interface": "wg0", "dns": {"mode": "strict"}, "ipv6": "disable",
+            "hostPorts": [], "servicePolicy": "enforced",
+        }
+        report = {
+            "namespace": "vpnapps", "configured": configured,
+            "defaultDropChainsPresent": True, "policyMatchesConfiguration": True,
+            "installedPeerCount": 1, "handshakeAgesSeconds": [],
+            "services": {}, "issues": [], "warnings": [],
+        }
+        output = io.StringIO()
+        with (
+            patch.object(doctor.sys, "argv", ["vpn-confinement-doctor"]),
+            patch.object(doctor.os, "geteuid", return_value=0),
+            patch.object(doctor.Path, "read_text", return_value=json.dumps({"namespaces": {"vpnapps": configured}})),
+            patch.object(doctor, "inspect", return_value=report),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(doctor.main(), 0)
+        self.assertIn("Service policy: enforced", output.getvalue())
+
     def test_policy_comparison_ignores_handles_and_counters_but_not_verdicts(self):
         original = {"nftables": [
             {"metainfo": {"version": "1"}},

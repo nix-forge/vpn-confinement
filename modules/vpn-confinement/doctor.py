@@ -440,6 +440,7 @@ def main():
             print(
                 f"  DNS: {item['configured']['dns']['mode']}; IPv6: {item['configured']['ipv6']}"
             )
+            print(f"  Service policy: {item['configured'].get('servicePolicy', 'profile')}")
             print(f"  Host ingress TCP ports: {item['configured']['hostPorts']}")
             print(f"  Handshake ages in seconds: {item['handshakeAgesSeconds']}")
             for name, service in item["services"].items():

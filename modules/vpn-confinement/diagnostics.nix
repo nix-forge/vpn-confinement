@@ -22,7 +22,7 @@ let
         in
         {
           interface = ns.wireguard.interface;
-          inherit (ns) securityProfile;
+          inherit (ns) securityProfile servicePolicy;
           namespaceWarnings =
             lib.optionals ns.wireguard.allowInsecureKeyMaterial [ "insecure key material exception enabled" ]
             ++ lib.optionals ns.wireguard.allowHostnameEndpoints [ "host-side endpoint DNS exception enabled" ];
@@ -46,9 +46,7 @@ let
             lib.optionals (vpnLib.unsafeCapabilities unit.serviceConfig) [
               "unsafe or noncanonical capabilities configured"
             ]
-            ++ lib.optionals (vpnLib.privilegedCommandPhases unit.serviceConfig != [ ]) [
-              "privileged or unverified lifecycle commands: ${lib.concatStringsSep ", " (vpnLib.privilegedCommandPhases unit.serviceConfig)}"
-            ]
+            ++ vpnLib.commandWarnings unit.serviceConfig
             ++
               lib.optionals
                 (vpnLib.unconfinedSockets cfg config.systemd.services config.systemd.sockets serviceName != [ ])

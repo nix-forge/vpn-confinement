@@ -125,26 +125,26 @@ in
               default = false;
               description = ''
                 Explicit opt-out for high-assurance non-root enforcement. Use only
-                when this service cannot run as DynamicUser or a dedicated User.
+                when this service cannot run as DynamicUser or a dedicated User. Rejected when namespace servicePolicy = "enforced".
               '';
             };
 
             allowUnsafeCapabilities = mkOption {
               type = types.bool;
               default = false;
-              description = "Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax. These can undermine confinement. Prefer a separate privileged helper.";
+              description = "Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax. These can undermine confinement. Rejected when namespace servicePolicy = enforced. Prefer a separate privileged helper.";
             };
 
             allowPrivilegedCommands = mkOption {
               type = types.bool;
               default = false;
-              description = "Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command executable syntax that cannot be checked conservatively. Applies to all lifecycle commands; prefer separate trusted setup units.";
+              description = "Explicit high-assurance exception for privileged Exec prefixes or executable syntax that cannot be checked conservatively. Rejected when namespace servicePolicy = enforced. Applies to all lifecycle commands; prefer separate trusted setup units.";
             };
 
             allowHostSockets = mkOption {
               type = types.bool;
               default = false;
-              description = "Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified. Includes host Unix sockets and unresolved socket references.";
+              description = "Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified. Includes host Unix sockets and unresolved socket references. Rejected when namespace servicePolicy = enforced.";
             };
 
             extraAddressFamilies = mkOption {
