@@ -654,6 +654,36 @@ one of “balanced”, “highAssurance”
 
 
 
+## services\.vpnConfinement\.namespaces\.\<name>\.servicePolicy
+
+
+
+Service privilege validation, independent of tunnel destination policy\.
+“profile” preserves securityProfile behavior, including explicit
+highAssurance exceptions\. “enforced” requires non-root services,
+NoNewPrivileges, empty capability sets, verified lifecycle command syntax,
+and verified socket confinement\. It rejects all service exception
+flags and works with balanced and allowAllTunnel\. Selecting
+“profile” never disables highAssurance’s existing checks\.
+
+
+
+*Type:*
+one of “profile”, “enforced”
+
+
+
+*Default:*
+
+```nix
+"profile"
+```
+
+*Declared by:*
+ - [modules/vpn-confinement/options\.nix](https://github.com/nix-forge/vpn-confinement/blob/main/modules/vpn-confinement/options.nix)
+
+
+
 ## services\.vpnConfinement\.namespaces\.\<name>\.wireguard\.allowHostnameEndpoints
 
 
@@ -842,7 +872,7 @@ true
 
 
 
-Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified\. Includes host Unix sockets and unresolved socket references\.
+Explicit high-assurance exception for activation or inherited sockets whose matching VPN namespace cannot be verified\. Includes host Unix sockets and unresolved socket references\. Rejected when namespace servicePolicy = enforced\.
 
 
 
@@ -866,7 +896,7 @@ false
 
 
 
-Explicit high-assurance exception for privileged Exec prefixes or quoted, escaped and multi-command executable syntax that cannot be checked conservatively\. Applies to all lifecycle commands; prefer separate trusted setup units\.
+Explicit high-assurance exception for privileged Exec prefixes or executable syntax that cannot be checked conservatively\. Rejected when namespace servicePolicy = enforced\. Applies to all lifecycle commands; prefer separate trusted setup units\.
 
 
 
@@ -891,7 +921,7 @@ false
 
 
 Explicit opt-out for high-assurance non-root enforcement\. Use only
-when this service cannot run as DynamicUser or a dedicated User\.
+when this service cannot run as DynamicUser or a dedicated User\. Rejected when namespace servicePolicy = “enforced”\.
 
 
 
@@ -915,7 +945,7 @@ false
 
 
 
-Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax\. These can undermine confinement\. Prefer a separate privileged helper\.
+Explicit high-assurance exception for CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_NET_RAW or noncanonical capability syntax\. These can undermine confinement\. Rejected when namespace servicePolicy = enforced\. Prefer a separate privileged helper\.
 
 
 

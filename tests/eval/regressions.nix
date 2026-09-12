@@ -41,6 +41,16 @@ let
         };
       } extra
     );
+  enforced =
+    extra:
+    eval (
+      lib.recursiveUpdate {
+        services.vpnConfinement.namespaces.vpnapps = {
+          servicePolicy = "enforced";
+          egress.mode = "allowAllTunnel";
+        };
+      } extra
+    );
   raw = strict {
     services.vpnConfinement.namespaces.vpnapps.hostLink.enable = true;
     systemd.services.probe = {
@@ -236,7 +246,7 @@ in
     builtins.all
       (
         cmd:
-        hasError "privileged command" (strict {
+        hasError "unverified executable syntax" (strict {
           systemd.services.probe.serviceConfig.ExecStart = lib.mkForce cmd;
         })
       )
@@ -246,6 +256,462 @@ in
         "/bin/true ; +/bin/true"
         "'!/bin/true'"
       ];
+  command-diagnostics-distinguish-risk =
+    let
+      warnings = command: vpnLib.commandWarnings { ExecStart = command; };
+      has = text: messages: builtins.any (lib.hasInfix text) messages;
+      unverified = [
+        "\"relative-executable\""
+        "\"/bin/tr\\ue\""
+        "/bin/true\n/bin/false"
+        "/bin/true\r/bin/false"
+        "\"+/bin/true\""
+        "\\x2b/bin/true"
+        "/bin/true ; +/bin/true"
+      ];
+    in
+    builtins.all (
+      command:
+      has "unverified executable syntax in ExecStart" (warnings command)
+      && !has "privileged command prefixes" (warnings command)
+      && has "does not confirm" (warnings command)
+      && hasError "unverified executable syntax" (strict {
+        systemd.services.probe.serviceConfig.ExecStart = lib.mkForce command;
+      })
+    ) unverified
+    &&
+      builtins.all
+        (
+          prefix:
+          has "privileged command prefixes" (warnings "${prefix}/bin/true")
+          && !has "unverified executable syntax" (warnings "${prefix}/bin/true")
+        )
+        [
+          "+"
+          "!"
+          "!!"
+          "-+"
+          "@:+"
+          "\t+"
+        ]
+    &&
+      builtins.all
+        (
+          command:
+          has "privileged command prefixes" (warnings command)
+          && !has "unverified executable syntax" (warnings command)
+        )
+        [
+          "+/bin/true\n"
+          "!/bin/true\n"
+        ]
+    && builtins.all (command: warnings command == [ ]) [
+      ""
+      " \t"
+      "/bin/true"
+      "-/bin/echo '+hello' '!hello'"
+      "@:/bin/echo name"
+      "\"/bin/true\""
+      "'/bin/true'"
+      "\"/bin/echo\" '+arg'"
+      "/bin/true\n"
+      "/bin/true\r\n\t "
+    ]
+    &&
+      builtins.length (warnings [
+        "+/bin/true"
+        "\"relative-executable\""
+      ]) == 2;
+  command-warning-explains-unverified-syntax =
+    let
+      config = eval { systemd.services.probe.serviceConfig.ExecStart = lib.mkForce "\\x2b/bin/true"; };
+    in
+    builtins.any (lib.hasInfix "systemd.services.probe has unverified executable syntax in ExecStart") config.warnings
+    && !(builtins.any (lib.hasInfix "systemd.services.probe has privileged command prefixes") config.warnings);
+  enforced-all-tunnel =
+    let
+      c = enforced { };
+    in
+    errors c == [ ]
+    && c.services.vpnConfinement.namespaces.vpnapps.securityProfile == "balanced"
+    && c.services.vpnConfinement.namespaces.vpnapps.egress.mode == "allowAllTunnel"
+    && builtins.deepSeq c.systemd.units."probe.service".text true;
+  enforced-rejects-capabilities =
+    builtins.all
+      (
+        field:
+        builtins.all
+          (
+            cap:
+            hasError "requires empty CapabilityBoundingSet and AmbientCapabilities" (enforced {
+              systemd.services.probe.serviceConfig.${field} = [ cap ];
+            })
+          )
+          [
+            "CAP_NET_ADMIN"
+            "CAP_SYS_ADMIN"
+            "CAP_NET_RAW"
+            "CAP_SYS_PTRACE"
+            "CAP_DAC_OVERRIDE"
+            "CAP_SETUID"
+            "CAP_NET_BIND_SERVICE"
+            "13"
+          ]
+      )
+      [
+        "CapabilityBoundingSet"
+        "AmbientCapabilities"
+      ];
+  enforced-rejects-omitted-bounding-reset =
+    hasError "empty list omits the clearing directive"
+      (enforced {
+        systemd.services.probe.serviceConfig.CapabilityBoundingSet = lib.mkForce [ ];
+      });
+  enforced-accepts-explicit-bounding-reset =
+    let
+      c = enforced { systemd.services.probe.serviceConfig.CapabilityBoundingSet = lib.mkForce [ "" ]; };
+    in
+    errors c == [ ] && lib.hasInfix "CapabilityBoundingSet=\n" c.systemd.units."probe.service".text;
+  enforced-rejects-zero-user-variants =
+    builtins.all
+      (
+        user:
+        hasError "must run non-root" (enforced {
+          systemd.services.probe.serviceConfig.User = user;
+        })
+      )
+      [
+        "0"
+        "00"
+        "000"
+        0
+      ];
+  enforced-rejects-root-alias = hasError "must run non-root" (enforced {
+    users.users.root-alias = {
+      uid = 0;
+      group = "root";
+      isSystemUser = true;
+    };
+    systemd.services.probe.serviceConfig.User = "root-alias";
+  });
+  enforced-rejects-implicit-root =
+    builtins.all
+      (
+        name:
+        hasError "systemd.services.${name} is in namespace vpnapps and must run non-root" (enforced {
+          users.users.root-alias = {
+            uid = 0;
+            group = "root";
+            isSystemUser = true;
+          };
+          systemd.services.${name} = {
+            vpn = {
+              enable = true;
+              namespace = "vpnapps";
+            };
+            serviceConfig = {
+              DynamicUser = true;
+              ExecStart = "${pkgs.coreutils}/bin/true";
+            };
+          };
+        })
+      )
+      [
+        "root"
+        "root-alias"
+      ];
+  enforced-rejects-user-specifiers =
+    builtins.all
+      (
+        user:
+        hasError "requires a literal User without systemd specifiers" (enforced {
+          systemd.services."instance@root" = {
+            vpn = {
+              enable = true;
+              namespace = "vpnapps";
+            };
+            serviceConfig = {
+              User = user;
+              ExecStart = "${pkgs.coreutils}/bin/true";
+            };
+          };
+        })
+      )
+      [
+        "%i"
+        "%U"
+      ];
+  enforced-rejects-user-whitespace =
+    builtins.all
+      (
+        user:
+        hasError "requires a literal User without systemd specifiers or whitespace" (enforced {
+          systemd.services.probe.serviceConfig.User = user;
+        })
+      )
+      [
+        " "
+        "\t"
+        " root"
+        "root "
+        " root "
+        "0\n"
+      ];
+  enforced-rejects-renamed-root-alias = hasError "must run non-root" (enforced {
+    users.users.renamed-root = {
+      name = "effective-root";
+      uid = 0;
+      group = "root";
+      isSystemUser = true;
+    };
+    systemd.services.probe.serviceConfig.User = "effective-root";
+  });
+  enforced-rejects-root = hasError "must run non-root" (enforced {
+    systemd.services.probe.serviceConfig.User = "root";
+  });
+  enforced-rejects-host-sockets = hasError "host activation" (enforced {
+    systemd.sockets.probe.listenStreams = [ "127.0.0.1:18080" ];
+  });
+  enforced-rejects-privileged-commands =
+    builtins.all
+      (
+        prefix:
+        hasError "privileged command" (enforced {
+          systemd.services.probe.serviceConfig.ExecStart = lib.mkForce "${prefix}/bin/true";
+        })
+      )
+      [
+        "+"
+        "!"
+        "!!"
+        "-+"
+        "@:+"
+      ];
+  enforced-rejects-exceptions =
+    builtins.all
+      (
+        flag:
+        hasError "rejects service exception flags" (enforced {
+          systemd.services.probe.vpn.${flag} = true;
+        })
+      )
+      [
+        "allowRootInHighAssurance"
+        "allowUnsafeCapabilities"
+        "allowPrivilegedCommands"
+        "allowHostSockets"
+      ];
+  enforced-rejects-new-privileges = hasError "requires NoNewPrivileges = true" (enforced {
+    systemd.services.probe.serviceConfig.NoNewPrivileges = lib.mkForce false;
+  });
+  profile-retains-high-assurance-checks = hasError "must run non-root" (strict {
+    services.vpnConfinement.namespaces.vpnapps.servicePolicy = "profile";
+    systemd.services.probe.serviceConfig.User = "root";
+  });
+  high-assurance-enforced-rejects-exceptions = hasError "rejects service exception flags" (strict {
+    services.vpnConfinement.namespaces.vpnapps.servicePolicy = "enforced";
+    systemd.services.probe.vpn.allowPrivilegedCommands = true;
+  });
+  native-quoted-executable-accepted =
+    builtins.all
+      (
+        cmd:
+        errors (enforced {
+          systemd.services.probe.serviceConfig.ExecStart = lib.mkForce cmd;
+        }) == [ ]
+      )
+      [
+        "\"${pkgs.coreutils}/bin/sleep\" infinity"
+        "'${pkgs.coreutils}/bin/sleep' infinity\n"
+        "${pkgs.coreutils}/bin/sleep infinity\r\n\t "
+      ];
+  enforced-rejects-ambiguous-executable =
+    builtins.all
+      (
+        cmd:
+        hasError "unverified executable syntax" (enforced {
+          systemd.services.probe.serviceConfig.ExecStart = lib.mkForce cmd;
+        })
+      )
+      [
+        "\"+/bin/true\""
+        "'!/bin/true'"
+        "\"/bin/tr\\ue\""
+        "\\x2b/bin/true"
+        "\"relative\""
+        "/bin/true ; +/bin/true"
+        "\"/bin/true\" ; /bin/false"
+        "/bin/true\n/bin/false"
+        "/bin/true\r/bin/false"
+      ];
+  high-assurance-rejects-unverified-user =
+    builtins.all
+      (
+        user:
+        hasError "requires a literal User without systemd specifiers or whitespace" (strict {
+          systemd.services.probe.serviceConfig.User = user;
+        })
+      )
+      [
+        "%i"
+        "%U"
+        " "
+        " root "
+        "0\n"
+      ];
+  high-assurance-rejects-zero-user-variants =
+    builtins.all
+      (
+        user:
+        hasError "must run non-root" (strict {
+          systemd.services.probe.serviceConfig.User = user;
+        })
+      )
+      [
+        "00"
+        "000"
+        0
+      ];
+  high-assurance-rejects-renamed-root = hasError "must run non-root" (strict {
+    users.users.renamed-root = {
+      name = "effective-root";
+      uid = 0;
+      group = "root";
+      isSystemUser = true;
+    };
+    systemd.services.probe.serviceConfig.User = "effective-root";
+  });
+  high-assurance-rejects-implicit-root =
+    hasError "systemd.services.root is in high-assurance namespace vpnapps and must run non-root"
+      (strict {
+        systemd.services.root = {
+          vpn = {
+            enable = true;
+            namespace = "vpnapps";
+          };
+          serviceConfig = {
+            DynamicUser = true;
+            ExecStart = "${pkgs.coreutils}/bin/true";
+          };
+        };
+      });
+  strict-policies-reject-permissions-start-only =
+    builtins.all
+      (
+        policy:
+        hasError "requires PermissionsStartOnly to be unset or false" (policy {
+          systemd.services.probe.serviceConfig.PermissionsStartOnly = true;
+        })
+      )
+      [
+        strict
+        enforced
+      ];
+  high-assurance-legacy-command-exception-preserved =
+    errors (strict {
+      systemd.services.probe = {
+        vpn.allowPrivilegedCommands = true;
+        serviceConfig = {
+          PermissionsStartOnly = true;
+          ExecReloadPost = "+/bin/true";
+        };
+      };
+    }) == [ ];
+  strict-policies-reject-privileged-reload-post =
+    builtins.all
+      (
+        policy:
+        hasError "ExecReloadPost" (policy {
+          systemd.services.probe.serviceConfig.ExecReloadPost = "+/bin/true";
+        })
+      )
+      [
+        strict
+        enforced
+      ];
+  strict-policies-reject-implicit-root-template =
+    builtins.all
+      (
+        policy:
+        builtins.all
+          (
+            name:
+            hasError "and must run non-root" (policy {
+              users.users.root-alias = {
+                uid = 0;
+                group = "root";
+                isSystemUser = true;
+              };
+              systemd.services.${name} = {
+                vpn = {
+                  enable = true;
+                  namespace = "vpnapps";
+                };
+                serviceConfig = {
+                  DynamicUser = true;
+                  ExecStart = "${pkgs.coreutils}/bin/true";
+                };
+              };
+            })
+          )
+          [
+            "root@instance"
+            "root-alias@instance"
+          ]
+      )
+      [
+        strict
+        enforced
+      ];
+  strict-policies-allow-safe-template =
+    builtins.all
+      (
+        policy:
+        let
+          c = policy {
+            systemd.services."safe-probe@instance" = {
+              vpn = {
+                enable = true;
+                namespace = "vpnapps";
+              };
+              serviceConfig = {
+                DynamicUser = true;
+                ExecStart = "${pkgs.coreutils}/bin/true";
+                ExecReloadPost = "${pkgs.coreutils}/bin/true";
+                PermissionsStartOnly = false;
+              };
+            };
+          };
+        in
+        errors c == [ ] && builtins.stringLength c.systemd.units."safe-probe@instance.service".text > 0
+      )
+      [
+        strict
+        enforced
+      ];
+  high-assurance-root-exception-preserved =
+    errors (strict {
+      systemd.services.probe = {
+        vpn.allowRootInHighAssurance = true;
+        serviceConfig.User = "%U";
+      };
+    }) == [ ];
+  high-assurance-rejects-omitted-bounding =
+    hasError "requires an explicit CapabilityBoundingSet assignment"
+      (strict {
+        systemd.services.probe.serviceConfig.CapabilityBoundingSet = lib.mkForce [ ];
+      });
+  high-assurance-bounding-exception-preserved =
+    errors (strict {
+      systemd.services.probe = {
+        vpn.allowUnsafeCapabilities = true;
+        serviceConfig.CapabilityBoundingSet = lib.mkForce [ ];
+      };
+    }) == [ ];
+  high-assurance-known-capability-preserved =
+    errors (strict {
+      systemd.services.probe.serviceConfig.CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
+    }) == [ ];
   allow-ordinary-command-arguments =
     errors (strict {
       systemd.services.probe.serviceConfig.ExecStart = lib.mkForce "-/bin/echo '+hello' '!hello'";
