@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - id: inventory
-        uses: nix-forge/ci/actions/discover-lockfiles@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/discover-lockfiles@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
   lock-health:
     name: Flake lock health
     needs: [flake-lock]
@@ -43,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         lockfile: ${{ fromJSON(needs.discover.outputs.lockfiles) }}
-    uses: nix-forge/ci/.github/workflows/flake-lock.yml@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+    uses: nix-forge/ci/.github/workflows/flake-lock.yml@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
     with:
       lockfile: ${{ matrix.lockfile }}
   format:
@@ -58,7 +58,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/setup-nix@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
         with:
           cache: 'false'
           cache-scope: ci-format
@@ -77,16 +77,16 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/setup-nix@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
         with:
           cache: 'false'
           cache-scope: ci-lint
       - name: Test runtime inventory changes
         run: python3 -m unittest discover -s .github/tests -v
       - name: Check shared workflow contracts
-        uses: nix-forge/ci/actions/validate-workflows@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/validate-workflows@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
       - name: Run repository hooks and publication checks
-        uses: nix-forge/ci/actions/repository-checks@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/repository-checks@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
         with:
           hook-runner: pre-commit
   flake-check:
@@ -109,7 +109,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/setup-nix@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
         with:
           cache: 'false'
           cache-scope: ci-flake-check
@@ -129,4 +129,4 @@ jobs:
       actions: write # Dispatch trusted queue validation.
     steps:
       - name: Notify trusted queue reconciler
-        uses: nix-forge/ci/actions/queue-completion@b2e2598e6c7a72e54c38ef1802d6b19c917ce617 # v2.5.1
+        uses: nix-forge/ci/actions/queue-completion@8df2d2979c33ca75ddbd3a878c834ca96b01dc38 # v2.5.2
