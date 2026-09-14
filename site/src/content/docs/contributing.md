@@ -39,6 +39,19 @@ bun install --cwd site
 bun run --cwd site build
 ```
 
+## Testing policy
+
+CI runs formatting, flake evaluation, dependency review, CodeQL, the generated
+documentation build, and the applicable VM/runtime checks on pull requests and
+merge groups. Run the focused check for the behavior you changed, then the
+commands above before requesting review.
+
+Every major change to namespace, routing, DNS, firewall, credentials, service
+lifecycle, or public interfaces must add or update an automated test. If an
+automated test is not practical, record the reason, manual evidence, and a
+follow-up plan in the pull request. Security and dependency findings follow the
+[dependency-management policy](docs/dependency-management.md).
+
 Canonical project docs live in `site/src/content/docs/`.
 
 ## Contribution Guidelines
