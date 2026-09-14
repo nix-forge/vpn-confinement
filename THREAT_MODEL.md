@@ -32,3 +32,11 @@ explicitly different from a localhost listener.
 
 Review this model when changing namespace, firewall, DNS, socket, credential,
 service lifecycle, CI, or release behavior.
+
+## Review cadence
+
+The maintainers review this model before each release and whenever network
+isolation, service behavior, dependencies, CI permissions, Pages, or secret
+handling changes. A release candidate includes an explicit attack-surface
+review and records new trust boundaries and residual risk in its release
+notes. Incidents trigger an out-of-cycle review and a dated follow-up issue.

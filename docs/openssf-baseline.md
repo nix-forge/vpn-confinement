@@ -63,6 +63,11 @@ disclosure follows a fix or documented mitigation. [security/vex.json](../securi
 records reviewed non-affectability statements. Support rules are in
 [SUPPORT.md](../SUPPORT.md).
 
+The operating procedures for [dependency management](dependency-management.md)
+and [secret management](secret-management.md) are part of this policy. They
+define the review, release-gate, storage, access, and rotation requirements
+used to support the controls below.
+
 ## Control evidence
 
 | Control area | Evidence |

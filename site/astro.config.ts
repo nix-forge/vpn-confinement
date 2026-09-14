@@ -71,6 +71,8 @@ export default defineConfig({
           items: [
             { label: "Contributing", slug: "contributing" },
             { label: "Security", slug: "security" },
+            { label: "Dependency management", slug: "dependency-management" },
+            { label: "Secret management", slug: "secret-management" },
             { label: "Code of Conduct", slug: "code-of-conduct" },
           ],
         },

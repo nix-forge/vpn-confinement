@@ -45,6 +45,22 @@ const mappings: Mapping[] = [
       description: "Supported versions and vulnerability reporting",
     },
   },
+  {
+    from: "docs/dependency-management.md",
+    to: "site/src/content/docs/dependency-management.md",
+    frontmatter: {
+      title: "Dependency management",
+      description: "How dependencies are selected, reviewed, and updated",
+    },
+  },
+  {
+    from: "docs/secret-management.md",
+    to: "site/src/content/docs/secret-management.md",
+    frontmatter: {
+      title: "Secret management",
+      description: "How credentials are stored, accessed, and rotated",
+    },
+  },
 ];
 
 function withFrontmatter(content: string, frontmatter: Mapping["frontmatter"]) {
