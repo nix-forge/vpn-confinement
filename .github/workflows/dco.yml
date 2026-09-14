@@ -1,16 +1,12 @@
 name: DCO
-
 on:
   pull_request:
   merge_group:
     types: [checks_requested]
-
 permissions: {}
-
 concurrency:
   group: dco-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
   sign-off:
     name: DCO sign-off
