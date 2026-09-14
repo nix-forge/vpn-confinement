@@ -3,6 +3,10 @@
 
   <h1>VPN Confinement</h1>
 
+  <a href="https://www.bestpractices.dev/en/projects/14640">
+    <img src="https://www.bestpractices.dev/projects/14640/baseline" alt="OpenSSF Best Practices" />
+  </a>
+
   <div>
     <a href="https://github.com/nix-forge/vpn-confinement/issues">
       <img src="https://img.shields.io/github/issues/nix-forge/vpn-confinement?style=for-the-badge&labelColor=303446&color=f5a97f" alt="Open issues" />
