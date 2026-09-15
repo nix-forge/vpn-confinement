@@ -6,6 +6,12 @@
   <a href="https://www.bestpractices.dev/en/projects/14640/baseline-3">
     <img src="https://www.bestpractices.dev/projects/14640/baseline" alt="OpenSSF Best Practices" />
   </a>
+  <a href="https://www.bestpractices.dev/en/projects/14640/passing">
+    <img src="https://www.bestpractices.dev/projects/14640/badge" alt="OpenSSF Developer Best Practices" />
+  </a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/nix-forge/vpn-confinement">
+    <img src="https://api.scorecard.dev/projects/github.com/nix-forge/vpn-confinement/badge" alt="OpenSSF Scorecard" />
+  </a>
 
   <div>
     <a href="https://github.com/nix-forge/vpn-confinement/issues">
