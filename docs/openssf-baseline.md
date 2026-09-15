@@ -11,7 +11,8 @@ nftables policy, and DNS controls for selected NixOS services. It does not
 currently publish compiled GitHub release assets or official GitHub releases.
 The documentation site is the public release surface. A future source release
 must use a unique immutable tag, a scoped change log, integrity evidence,
-security review, and a support window.
+security review, and a support window. The SLSA scope and future builder
+contract are documented in [docs/slsa.md](slsa.md).
 
 This repository is part of the related projects listed in the
 [nix-forge project security contract](https://github.com/nix-forge/.github/blob/main/PROJECTS.md).
