@@ -8,8 +8,11 @@ that demonstrate both the allowed and denied paths. A change that weakens
 confinement must explain the threat-model impact and the migration path.
 
 Issues and pull requests are the public record for technical decisions. The
-protected `main` branch, required checks, review rules, and merge queue apply to
-all accepted changes.
+protected `main` branch, required checks, and merge queue apply to all accepted
+changes. While this is a solo-maintainer project, GitHub requires no independent
+approval; the maintainer may use AI review and authorize an agent to merge after
+the checks pass. The [organization review policy](https://github.com/nix-forge/.github/blob/main/GOVERNANCE.md#solo-maintainer-review-and-automation)
+also governs scheduled bot updates and privileged automation changes.
 
 Code collaborators are reviewed before receiving escalated permissions for
 protected-branch approval, repository administration, Pages, Actions secrets,
