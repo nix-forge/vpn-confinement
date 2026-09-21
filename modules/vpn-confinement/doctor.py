@@ -155,23 +155,35 @@ def normalized_policy(table):
             return [clean(v) for v in value]
         return value
 
-    objects, rules = [], {}
-    for item in table["nftables"]:
-        if not isinstance(item, dict):
-            return None
-        if "metainfo" in item:
-            continue
-        item = clean(item)
-        if "rule" in item:
-            rules.setdefault(item["rule"].get("chain", ""), []).append(item)
-        else:
-            if "set" in item and isinstance(item["set"].get("elem"), list):
-                item["set"]["elem"].sort(key=lambda x: json.dumps(x, sort_keys=True))
-            objects.append(item)
-    return {
-        "objects": sorted(objects, key=lambda x: json.dumps(x, sort_keys=True)),
-        "rules": rules,
-    }
+    try:
+        objects, rules = [], {}
+        for item in table["nftables"]:
+            if not isinstance(item, dict):
+                return None
+            if "metainfo" in item:
+                continue
+            item = clean(item)
+            if "rule" in item:
+                rule = item["rule"]
+                if not isinstance(rule, dict) or not isinstance(rule.get("chain", ""), str):
+                    return None
+                rules.setdefault(rule.get("chain", ""), []).append(item)
+            else:
+                if "set" in item:
+                    if not isinstance(item["set"], dict):
+                        return None
+                    if isinstance(item["set"].get("elem"), list):
+                        item["set"]["elem"].sort(
+                            key=lambda x: json.dumps(x, sort_keys=True)
+                        )
+                objects.append(item)
+        return {
+            "objects": sorted(objects, key=lambda x: json.dumps(x, sort_keys=True)),
+            "rules": rules,
+        }
+    except (RecursionError, TypeError, ValueError):
+        # Malformed nft JSON is unavailable policy evidence, never a diagnosis.
+        return None
 
 
 def policy_matches(table, snapshot):

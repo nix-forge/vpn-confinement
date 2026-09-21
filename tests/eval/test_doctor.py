@@ -19,6 +19,11 @@ spec.loader.exec_module(doctor)
 
 
 class DoctorTests(unittest.TestCase):
+    def test_malformed_nft_objects_are_unavailable_policy_evidence(self):
+        for item in ({"rule": []}, {"rule": {"chain": []}}, {"set": None}):
+            with self.subTest(item=item):
+                self.assertIsNone(doctor.normalized_policy({"nftables": [item]}))
+
     def test_text_output_reports_enforced_service_policy(self):
         configured = {
             "interface": "wg0", "dns": {"mode": "strict"}, "ipv6": "disable",
