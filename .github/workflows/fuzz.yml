@@ -6,14 +6,15 @@ on:
   schedule:
     - cron: '53 8 * * 1'
   workflow_dispatch:
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: fuzz-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   nft-policy:
     name: Fuzz nft policy diagnostics
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
