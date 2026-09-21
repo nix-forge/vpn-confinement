@@ -1,6 +1,8 @@
 name: Fuzz nft policy diagnostics
 on:
   pull_request:
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: '53 8 * * 1'
   workflow_dispatch:
