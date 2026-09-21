@@ -9,5 +9,6 @@ extend-exclude = [
 ]
 
 [default.extend-words]
+intoto = "intoto" # SLSA provenance asset filename suffix.
 ND = "ND"
 noice = "noice"
