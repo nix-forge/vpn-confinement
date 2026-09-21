@@ -1,18 +1,14 @@
 name: Fuzz nft policy diagnostics
-
 on:
   pull_request:
   schedule:
     - cron: '53 8 * * 1'
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: fuzz-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   nft-policy:
     runs-on: ubuntu-latest
