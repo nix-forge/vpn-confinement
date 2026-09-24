@@ -3,9 +3,6 @@
 
   <h1>VPN Confinement</h1>
 
-  <a href="https://www.bestpractices.dev/en/projects/14640/baseline-3">
-    <img src="https://www.bestpractices.dev/projects/14640/baseline" alt="OpenSSF Best Practices" />
-  </a>
   <a href="https://www.bestpractices.dev/en/projects/14640/passing">
     <img src="https://www.bestpractices.dev/projects/14640/badge" alt="OpenSSF Developer Best Practices" />
   </a>
