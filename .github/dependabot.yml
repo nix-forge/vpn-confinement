@@ -17,8 +17,8 @@ updates:
       include: scope
     groups:
       shared-ci:
+        # Update action and workflow references together for each ci release.
         patterns: ["nix-forge/ci"]
-        group-by: dependency-name
       github-actions-minor-and-patch:
         patterns:
           - "*"
