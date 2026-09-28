@@ -18,7 +18,10 @@ updates:
     groups:
       shared-ci:
         # Update action and workflow references together for each ci release.
-        patterns: ["nix-forge/ci"]
+        patterns: ["nix-forge/ci", "nix-forge/ci/*"]
+        exclude-patterns:
+          - "nix-forge/ci/.github/workflows/slsa-*"
+          - "nix-forge/ci/actions/repository-checks"
       github-actions-minor-and-patch:
         patterns:
           - "*"
