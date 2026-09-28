@@ -58,7 +58,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@4f58fd74e91957fa257cb48e2fa2687e09689e2c # v2.8.0
+        uses: nix-forge/ci/actions/setup-nix@0990163244b884966102915eaa71bbc9c789f5cc # v2.8.0
         with:
           cache: 'false'
           cache-scope: ci-format
@@ -77,7 +77,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@4f58fd74e91957fa257cb48e2fa2687e09689e2c # v2.8.0
+        uses: nix-forge/ci/actions/setup-nix@0990163244b884966102915eaa71bbc9c789f5cc # v2.8.0
         with:
           cache: 'false'
           cache-scope: ci-lint
@@ -109,7 +109,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: nix-forge/ci/actions/setup-nix@4f58fd74e91957fa257cb48e2fa2687e09689e2c # v2.8.0
+        uses: nix-forge/ci/actions/setup-nix@0990163244b884966102915eaa71bbc9c789f5cc # v2.8.0
         with:
           cache: 'false'
           cache-scope: ci-flake-check
