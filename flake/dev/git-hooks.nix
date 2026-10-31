@@ -70,6 +70,8 @@
               name = "Gitleaks";
               package = pkgs.gitleaks;
               entry = "${lib.getExe pkgs.gitleaks} git --pre-commit --staged --redact --no-banner";
+              # The entry supplies the complete command; replace upstream default arguments.
+              args = [ ];
               pass_filenames = false;
             };
 
