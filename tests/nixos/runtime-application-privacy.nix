@@ -214,8 +214,11 @@ in
     report = json.loads(machine.succeed("vpn-confinement-doctor vpnapps --json"))[0]
     assert report["policyMatchesConfiguration"]
     machine.succeed("kill $(cat /tmp/isp.pid) $(cat /tmp/host.pid)")
-    machine.fail("tcpdump -nr /tmp/isp.pcap 'port 53 or port 8080 or port 51414' 2>/dev/null | grep .")
-    machine.fail("tcpdump -nr /tmp/host.pcap 'port 53 or port 8080 or port 51414' 2>/dev/null | grep .")
+    for capture in ["isp", "host"]:
+        plaintext = machine.succeed(
+            f"tcpdump -nnr /tmp/{capture}.pcap 'port 53 or port 8080 or port 51414' 2>/dev/null"
+        )
+        assert not plaintext.strip(), f"{capture} plaintext packets: {plaintext}"
     machine.succeed("test -e /var/lib/resolver-probe/raw-blocked")
     # Rule tampering and missing peers must be reported by the real diagnostic.
     machine.succeed("ip netns exec vpnapps nft insert rule inet vpnc output accept")
